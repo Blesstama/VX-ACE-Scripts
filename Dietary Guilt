@@ -1,0 +1,376 @@
+#==============================================================================
+# 
+# ▼ Blesstama - Dietary Guilt v0.1
+# -- Created: 20.01.2024
+# -- Level: Normal
+# -- Requires: n/a
+# 
+#==============================================================================
+#==============================================================================
+# ▼ Introduction
+# =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+# Hey so remember the CC Proud mechanic? Basically it's same but upgraded.
+# DG and AC goes down 10 each time + you can see it almost always by holding
+# ctrl for 2 seconds.
+# -----------------------------------------------------------------------------
+# Items/Skills Notetags - These notetags go in the actors notebox in the database.
+# -----------------------------------------------------------------------------
+# <DG/AC: +(-)X>
+# your parameter of DG/AC will go up/down by used skill/item
+# -----------------------------------------------------------------------------
+# Actor/Class/Weapon/Armor/State/Enemy Notetags - These notetags go in the actors notebox in the database.
+# -----------------------------------------------------------------------------
+# <dg(ac) turn: +(-)x>
+# your parameter of DG/AC will go up/down by X more in end of turn
+# 
+# <dg(ac) item: +(-)x>
+# your parameter of DG/AC will go up/down by X more when someone use item
+# that increase dg/ac
+# -----------------------------------------------------------------------------
+
+#short the text meaning by module
+module BLESS
+  module DGAC
+    module CUSTOM
+      DG_ITEM = /<dg item:[ ]([\+\-]\d+)>/i
+      DG_TURN = /<dg turn:[ ]([\+\-]\d+)>/i
+      AC_ITEM = /<ac item:[ ]([\+\-]\d+)>/i
+      AC_TURN = /<ac turn:[ ]([\+\-]\d+)>/i
+    end
+  end
+end
+
+# Read notetags of everything
+module DataManager
+  class << self
+    alias load_database_dgac load_database
+  end
+
+  def self.load_database
+    load_database_dgac
+    load_notetags_dgac
+  end
+
+  def self.load_notetags_dgac
+    groups = [$data_actors, $data_classes, $data_skills, $data_weapons, $data_armors, $data_enemies, $data_states, $data_items]
+    groups.each do |group|
+      group.each do |obj|
+        next if obj.nil?
+        obj.load_notetags_dgac
+      end
+    end
+  end
+end
+
+# Increase numbers based on notetags before
+class RPG::BaseItem
+  attr_accessor :dg_item
+  attr_accessor :ac_item
+  attr_accessor :ac_turn
+  attr_accessor :dg_turn
+
+  def load_notetags_dgac
+    @dg_item = 0
+    @ac_item = 0
+    @ac_turn = 0
+    @dg_turn = 0
+
+    note_lines = self.note.split(/[\r]+/)
+    note_lines.each do |line|
+      case line
+      when BLESS::DGAC::CUSTOM::DG_ITEM
+        @dg_item = $1.to_i
+      when BLESS::DGAC::CUSTOM::DG_TURN
+        @dg_turn = $1.to_i
+      when BLESS::DGAC::CUSTOM::AC_ITEM
+        @ac_item = $1.to_i
+      when BLESS::DGAC::CUSTOM::AC_TURN
+        @ac_turn = $1.to_i
+      end
+    end
+  end
+end
+
+# Add new parameters for actors: dg/ac and also whole increase per item use or by end of turn
+class Game_Actor < Game_Battler
+  attr_accessor :dg
+  attr_accessor :ac
+  attr_accessor :dg_item
+  attr_accessor :ac_item
+  attr_accessor :dg_turn
+  attr_accessor :ac_turn
+
+  def initialize(actor_id)
+    super()
+    setup(actor_id)
+    @last_skill = Game_BaseItem.new
+    @dg = 0
+    @ac = 0
+    @dg_item = 0
+    @ac_item = 0
+    @dg_turn = 0
+    @ac_turn = 0
+  end
+
+  # What does item/skills use when notetag (and adding new state upon going over 100)
+  def add_dg_effect(value)
+    @dg += (value + self.dgitem)
+    add_state(46) if @dg >= 100
+  end
+
+  def add_ac_effect(value)
+    @ac += (value + self.acitem)
+    add_state(47) if @ac >= 100
+  end
+end
+
+# Explanation for <DG/AC: +(-)X> thing
+class RPG::Item < RPG::UsableItem
+  def dg_effect
+    self.note[/\<DG:[ ]*([\+\-]\d+)\>/i, 1].to_i
+  end
+
+  def ac_effect
+    self.note[/\<AC:[ ]*([\+\-]\d+)\>/i, 1].to_i
+  end
+end
+
+class RPG::Skill < RPG::UsableItem
+  def dg_effect
+    self.note[/\<DG:[ ]*([\+\-]\d+)\>/i, 1].to_i
+  end
+
+  def ac_effect
+    self.note[/\<AC:[ ]*([\+\-]\d+)\>/i, 1].to_i
+  end
+end
+
+# Collect whole item/turn increase for DG/AC from everything
+class Game_BattlerBase
+  def dgitem
+    n = 0.0
+    if actor?
+      n += actor.dg_item
+      n += self.class.dg_item
+      equips.compact.each { |equip| n += equip.dg_item }
+    else
+      n += enemy.dg_item
+      n += self.class.dg_item if $imported["YEA-Doppelganger"] && !self.class.nil?
+    end
+    states.compact.each { |state| n += state.dg_item }
+    n.to_i
+  end
+
+  def dgturn
+    n = 0.0
+    if actor?
+      n += actor.dg_turn
+      n += self.class.dg_turn
+      equips.compact.each { |equip| n += equip.dg_turn }
+    else
+      n += enemy.dg_turn
+      n += self.class.dg_turn if $imported["YEA-Doppelganger"] && !self.class.nil?
+    end
+    states.compact.each { |state| n += state.dg_turn }
+    n.to_i
+  end
+
+  def acitem
+    n = 0.0
+    if actor?
+      n += actor.ac_item
+      n += self.class.ac_item
+      equips.compact.each { |equip| n += equip.ac_item }
+    else
+      n += enemy.ac_item
+      n += self.class.ac_item if $imported["YEA-Doppelganger"] && !self.class.nil?
+    end
+    states.compact.each { |state| n += state.ac_item }
+    n.to_i
+  end
+
+  def acturn
+    n = 0.0
+    if actor?
+      n += actor.ac_turn
+      n += self.class.ac_turn
+      equips.compact.each { |equip| n += equip.ac_turn }
+    else
+      n += enemy.ac_turn
+      n += self.class.ac_turn if $imported["YEA-Doppelganger"] && !self.class.nil?
+    end
+    states.compact.each { |state| n += state.ac_turn }
+    n.to_i
+  end
+end
+
+# Where basically things happen
+class Game_Actor < Game_Battler
+  attr_accessor :dg
+  attr_accessor :ac
+  
+  alias original_make_damage_value make_damage_value
+  
+  def make_damage_value(user, item)
+    original_make_damage_value(user, item)
+    if item.damage.recover? && self.state?(46)
+      @result.hp_damage *= -1 
+    end
+    if item.damage.recover? && self.state?(47)
+      @result.mp_damage *= -1 
+    end
+  end
+  
+  def apply_dg_effect(item)
+    add_dg_effect(item.dg_effect) if item.dg_effect.to_i != 0
+  end
+
+  def apply_ac_effect(item)
+    add_ac_effect(item.ac_effect) if item.ac_effect.to_i != 0
+  end
+  
+  def dg
+    @dg ||= 0
+  end
+  
+  def ac
+    @ac ||= 0
+  end
+  
+  def on_turn_end
+    super
+    decrease1 = self.dg - (10 - self.dgturn)
+    decrease2 = self.ac - (10 - self.acturn)
+    @dg = [decrease1, 0].max
+    @ac = [decrease2, 0].max
+    if self.dg <= 99 && self.state?(46)
+      remove_state(46)
+    elsif self.dg >= 100 && !self.state?(46)
+      add_state(46)
+    end
+    if self.ac <= 99 && self.state?(47)
+      remove_state(47)
+    elsif self.ac >= 100 && !self.state?(47)
+      add_state(47)
+    end
+  end
+end
+
+# Add DG/AC if item/skill has it before dealing damage
+class Scene_Battle < Scene_Base
+  attr_accessor :dg
+  attr_accessor :ac
+  alias :original_apply_item_effects :apply_item_effects
+
+  # Increase DG/AC before damage and only by actor
+  def apply_item_effects(user, item)
+    user.apply_dg_effect(item) if user.actor? == true
+    user.apply_ac_effect(item) if user.actor? == true
+    original_apply_item_effects(user, item)
+  end
+end
+
+# Alter whole HP/MP by Recover HP/MP in items, if no formula
+class Game_Actor < Game_Battler
+  #--------------------------------------------------------------------------
+  # * [HP Recovery] Effect
+  #--------------------------------------------------------------------------
+  def item_effect_recover_hp(user, item, effect)
+    value = (mhp * effect.value1 + effect.value2) * rec
+    value *= user.pha if item.is_a?(RPG::Item)
+    value = value.to_i
+    value *= -1 if self.state?(46)
+    @result.hp_damage -= value
+    @result.success = true
+    self.hp += value
+  end
+  #--------------------------------------------------------------------------
+  # * [MP Recovery] Effect
+  #--------------------------------------------------------------------------
+  def item_effect_recover_mp(user, item, effect)
+    value = (mmp * effect.value1 + effect.value2) * rec
+    value *= user.pha if item.is_a?(RPG::Item)
+    value = value.to_i
+    value *= -1 if self.state?(47)
+    @result.mp_damage -= value
+    @result.success = true if value != 0
+    self.mp += value
+  end
+end
+#whole window showcase
+class Window_BattleStatus < Window_Selectable
+  attr_accessor :dg_state
+
+  def initialize
+    super(0, 0, window_width, window_height)
+    refresh
+    self.openness = 0
+    @dg_state = false
+    @ctrl_pressed = false
+    @last_ctrl_time = Time.now
+  end
+
+  def process_handling
+    if Input.press?(:CTRL)
+      if @ctrl_pressed && Time.now - @last_ctrl_time >= 1
+        @dg_state = !@dg_state
+        draw_all_items
+        @ctrl_pressed = false
+        @last_ctrl_time = Time.now
+      elsif !@ctrl_pressed
+        @ctrl_pressed = true
+        @last_ctrl_time = Time.now
+      end
+    else
+      @ctrl_pressed = false
+      super
+    end
+  end
+
+  def draw_gauge_area(rect, actor)
+    if @dg_state
+      draw_gauge_area_with_dg(rect, actor)
+    else
+      if $data_system.opt_display_tp
+        draw_gauge_area_with_tp(rect, actor)
+      else
+        draw_gauge_area_without_tp(rect, actor)
+      end
+    end
+  end
+
+  def draw_all_items
+    contents.clear
+    if @dg_state
+      $game_party.battle_members.each_with_index do |member, index|
+        draw_gauge_area_with_dg(contents.rect, member, index)
+      end
+    else
+      super
+    end
+  end
+
+  def draw_gauge_area_with_dg(rect, actor, index)
+    draw_actor_name(actor, rect.x, rect.y + index * line_height)
+    if @dg_state
+      draw_actor_dg(actor, rect.x + 120, rect.y + index * line_height)
+      draw_actor_ac(actor, rect.x + 220, rect.y + index * line_height)
+    else
+      super(rect, actor)
+    end
+  end
+
+  def draw_actor_dg(actor, x, y)
+    change_color(system_color)
+    draw_text(x, y, 120, line_height, "DG:")
+    change_color(normal_color)
+    draw_text(160, y, 60, line_height, actor.dg.to_s, 2) unless actor.dg.nil?
+  end
+
+  def draw_actor_ac(actor, x, y)
+    change_color(system_color)
+    draw_text(x, y, 120, line_height, "AC:")
+    change_color(normal_color)
+    draw_text(240, y, 60, line_height, actor.ac.to_s, 2) unless actor.ac.nil?
+  end
+end
