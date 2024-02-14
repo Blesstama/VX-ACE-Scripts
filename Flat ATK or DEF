@@ -1,0 +1,272 @@
+#==============================================================================
+# 
+# ▼ Blesstama - Flat ATK/DEF/CRIT multipler bonuses v0.01
+# -- Last Updated: 06.02.2024
+# -- Level: Easy
+# -- Requires: n/a
+#============================================================================== 
+#==============================================================================
+# ▼ Introduction
+# =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+# This script allows to make flat bonuses to damage either throught
+# flat influence or only while crit trigger, same for defense:
+# flat damage reduction always or when guarding
+# 
+#==============================================================================
+# ▼ Instructions
+# =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+# To install this script, open up your script editor and copy/paste this script
+# to an open slot below ▼ Materials/素材 but above ▼ Main. Remember to save.
+# 
+# -----------------------------------------------------------------------------
+# Actor/Class/Weapon/Armor/State Notetags - These notetags go in the X notebox in the database.
+# -----------------------------------------------------------------------------
+# <atk flat: +(-)x>
+# adds flat damage to any damage skills (goes before any other calculations)
+#
+# <atk crit flat: +(-)x>
+# adds flat damage to any damage skills (goes after any other calculations)
+#
+# <def flat: +(-)x>
+# adds flat damage reduction while taking damage 
+# (goes after calculating flat atk bonus)
+# 
+# <def guard flat: +(-)x>
+# adds flat damage reduction while guarding
+# (goes after applying grd effect)
+#
+# <crit multipler: +(-)x>
+# increase/decrease crit multipler by said number
+#
+#==============================================================================
+# ▼ Editting anything past this point may potentially result in causing
+# computer damage, incontinence, explosion of user's head, coma, death, and/or
+# halitosis so edit at your own risk.
+#==============================================================================
+
+module BLESS
+  module REGEXP
+  module BASEITEM
+    
+    ATK_FLAT = /<(?:ATK_FLAT|atk flat):[ ]([\+\-]\d+)>/i
+    ATK_CRIT_FLAT = /<(?:ATK_CRIT_FLAT|atk crit flat):[ ]([\+\-]\d+)>/i
+    DEF_FLAT = /<(?:DEF_FLAT|def flat):[ ]([\+\-]\d+)>/i
+    DEF_GUARD_FLAT = /<(?:DEF_GUARD_FLAT|def guard flat):[ ]([\+\-]\d+)>/i
+    CRIT_MULTIPLER = /<(?:CRIT_MULTIPLER|crit multipler):[ ]([\+\-]?\d+(\.\d+)?)>/i;
+    
+  end # BASEITEM
+  end # REGEXP
+end # YEA
+
+module DataManager
+  
+  #--------------------------------------------------------------------------
+  # alias method: load_database
+  #--------------------------------------------------------------------------
+  class <<self; alias load_database_bsl load_database; end
+  def self.load_database
+    load_database_bsl
+    load_notetags_bsl
+  end
+  
+  #--------------------------------------------------------------------------
+  # new method: load_notetags_bsl
+  #--------------------------------------------------------------------------
+  def self.load_notetags_bsl
+    groups = [$data_actors, $data_classes, $data_skills, $data_weapons,
+      $data_armors, $data_enemies, $data_states]
+    for group in groups
+      for obj in group
+        next if obj.nil?
+        obj.load_notetags_bsl
+      end
+    end
+  end
+  
+end # DataManager
+
+#==============================================================================
+# ■ RPG::BaseItem
+#==============================================================================
+
+class RPG::BaseItem
+  
+  #--------------------------------------------------------------------------
+  # public instance variables
+  #--------------------------------------------------------------------------
+  attr_accessor :atk_flat
+  attr_accessor :atk_crit_flat
+  attr_accessor :def_flat
+  attr_accessor :def_guard_flat
+  attr_accessor :crit_multipler
+  
+  #--------------------------------------------------------------------------
+  # common cache: load_notetags_scm
+  #--------------------------------------------------------------------------
+  def load_notetags_bsl
+    @atk_flat = 0
+    @atk_crit_flat = 0
+    @def_flat = 0
+    @def_guard_flat = 0
+    @crit_multipler = 0
+    #---
+    self.note.split(/[\r\n]+/).each { |line|
+      case line
+      #---
+      when BLESS::REGEXP::BASEITEM::ATK_FLAT
+        @atk_flat = $1.to_i
+      when BLESS::REGEXP::BASEITEM::ATK_CRIT_FLAT
+        @atk_crit_flat = $1.to_i
+      when BLESS::REGEXP::BASEITEM::DEF_FLAT
+        @def_flat = $1.to_i
+      when BLESS::REGEXP::BASEITEM::DEF_GUARD_FLAT
+        @def_guard_flat = $1.to_i
+      when BLESS::REGEXP::BASEITEM::CRIT_MULTIPLER
+        @crit_multipler = $1.to_f
+      #---
+      end
+    } # self.note.split
+    #---
+  end
+  
+end # RPG::BaseItem
+
+#==============================================================================
+# ■ Game_BattlerBase
+#==============================================================================
+
+class Game_BattlerBase
+  
+  #--------------------------------------------------------------------------
+  # new method: atkf
+  #--------------------------------------------------------------------------
+  def atkf
+    n = 0
+    if actor?
+      n += self.actor.atk_flat
+      n += self.class.atk_flat
+      equips.compact.each { |equip| n += equip.atk_flat }
+    else
+      n += self.enemy.atk_flat
+      n += self.class.atk_flat if $imported["YEA-Doppelganger"] && !self.class.nil?
+    end
+    states.compact.each { |state| n += state.atk_flat }
+    return n
+  end
+  #--------------------------------------------------------------------------
+  # new method: atkfc
+  #--------------------------------------------------------------------------
+  def atkfc
+    n = 0
+    if actor?
+      n += self.actor.atk_crit_flat
+      n += self.class.atk_crit_flat
+      equips.compact.each { |equip| n += equip.atk_crit_flat }
+    else
+      n += self.enemy.atk_crit_flat
+      n += self.class.atk_crit_flat if $imported["YEA-Doppelganger"] && !self.class.nil?
+    end
+    states.compact.each { |state| n += state.atk_crit_flat }
+    return n
+  end
+  #--------------------------------------------------------------------------
+  # new method: deff
+  #--------------------------------------------------------------------------
+  def deff
+    n = 0
+    if actor?
+      n += self.actor.def_flat
+      n += self.class.def_flat
+      equips.compact.each { |equip| n += equip.def_flat }
+    else
+      n += self.enemy.def_flat
+      n += self.class.def_flat if $imported["YEA-Doppelganger"] && !self.class.nil?
+    end
+    states.compact.each { |state| n += state.def_flat }
+    return n
+  end
+  #--------------------------------------------------------------------------
+  # new method: deffg
+  #--------------------------------------------------------------------------
+  def deffg
+    n = 0
+    if actor?
+      n += self.actor.def_guard_flat
+      n += self.class.def_guard_flat
+      equips.compact.each { |equip| n += equip.def_guard_flat }
+    else
+      n += self.enemy.def_guard_flat
+      n += self.class.def_guard_flat if $imported["YEA-Doppelganger"] && !self.class.nil?
+    end
+    states.compact.each { |state| n += state.def_guard_flat }
+    return n
+  end
+  #--------------------------------------------------------------------------
+  # new method: critm
+  #--------------------------------------------------------------------------
+  def critm
+    n = 0
+    if actor?
+      n += self.actor.crit_multipler
+      n += self.class.crit_multipler
+      equips.compact.each { |equip| n += equip.crit_multipler }
+    else
+      n += self.enemy.crit_multipler
+      n += self.class.crit_multipler if $imported["YEA-Doppelganger"] && !self.class.nil?
+    end
+    states.compact.each { |state| n += state.crit_multipler }
+    n
+    return n
+  end
+  
+end # Game_BattlerBase
+
+#==============================================================================
+# 
+# ▼ Overwriting how damage works + same for guard
+# 
+#~ #==============================================================================
+class Game_Battler < Game_BattlerBase
+  alias :original_make_damage_value :make_damage_value
+  def make_damage_value(user, item)
+    if (user.actor? == self.actor?) != (self.actor? == true)
+      value += user.atkf
+    end
+    if (user.actor? == self.actor?) != (self.actor? == true)
+      value -= self.deff
+    end
+    original_make_damage_value(user, item) # Вызываем оригинальный метод
+  end
+
+  #--------------------------------------------------------------------------
+  # * Applying Variance
+  #--------------------------------------------------------------------------
+  def apply_variance(damage, variance)
+    amp = [damage.abs * variance / 100, 0].max.to_i
+    var = rand(amp + 1) + rand(amp + 1) - amp
+    damage >= 0 ? damage + var : damage - var
+  end
+  #--------------------------------------------------------------------------
+  # * Apply Critical
+  #--------------------------------------------------------------------------
+  def apply_critical(user, damage)
+    value2 = 2
+    value2 += user.critm
+    damage += user.atkfc if (user.actor? == self.actor?) != (self.actor? == true)
+    damage *= value2
+    damage
+  end
+  #--------------------------------------------------------------------------
+  # * Applying Guard Adjustment
+  #--------------------------------------------------------------------------
+  def apply_guard(user, damage)
+    damage /= (2 * grd)
+    damage -= deffg if (user.actor? == self.actor?) != (self.actor? == true)
+    damage
+  end
+end
+#==============================================================================
+# 
+# ▼ End of File
+# 
+#==============================================================================
