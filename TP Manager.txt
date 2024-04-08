@@ -1,0 +1,174 @@
+#==============================================================================
+# 
+# ▼ Blesstama - TP Manager v0.01
+# -- Last Updated 08.04.2024
+# -- Level Easy
+# -- Requires na
+#============================================================================== 
+#==============================================================================
+# ▼ Introduction
+# =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+# This script allows to edit or increase TP influence as like
+# 1)increasedecrease max tp for actorsenemies min is 0
+# 2)increasedecrease tp you have on start for actorsenemies min is 0
+# 3)increasedecrease tp you get from any actiontaking damage (no cap)
+#==============================================================================
+# ▼ Instructions
+# =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+# To install this script, open up your script editor and copypaste this script
+# to an open slot below ▼ Materials素材 but above ▼ Main. Remember to save.
+# 
+# -----------------------------------------------------------------------------
+# ActorClassWeaponArmorState Notetags - These notetags go in the X notebox in the database.
+# -----------------------------------------------------------------------------
+# tp max +(-)x
+# increase max tp user can have (min cap is 0)
+#
+# tp start +(-)x
+# increase tp you have in start of battle (min cap is 0)
+#
+# tp flat +(-)x
+# add flat increase to tp getting whenever you deal or take damage
+#
+#==============================================================================
+# ▼ Editting anything past this point may potentially result in causing
+# computer damage, incontinence, explosion of user's head, coma, death, andor
+# halitosis so edit at your own risk.
+#==============================================================================
+
+module BLESS
+  module REGEXPT
+  module BASEITEM
+    
+    TP_MAX = (TP_MAXtp max)[ ]([+-]d+)i
+    TP_START = (TP_STARTtp start)[ ]([+-]d+)i
+    TP_FLAT = (TP_FLATtp flat)[ ]([+-]d+)i
+    
+  end
+  end
+end
+
+module DataManager
+  class  self
+    alias load_database_tpm load_database
+  end
+
+  def self.load_database
+    load_database_tpm
+    load_notetags_tpm
+  end
+
+  def self.load_notetags_tpm
+    groups = [$data_actors, $data_classes, $data_skills, $data_weapons, $data_armors, $data_enemies, $data_states]
+    groups.each do group
+      group.each do obj
+        obj.load_notetags_tpm unless obj.nil
+      end
+    end
+  end
+end
+
+class RPGBaseItem
+  attr_accessor tp_max
+  attr_accessor tp_start
+  attr_accessor tp_flat
+
+  def load_notetags_tpm
+    @tp_max = 0
+    @tp_start = 0
+    @tp_flat = 0
+    self.note.split([r]+).each do line
+      case line
+      when BLESSREGEXPTBASEITEMTP_MAX
+        @tp_max = $1.to_i
+      when BLESSREGEXPTBASEITEMTP_START
+        @tp_start = $1.to_i
+      when BLESSREGEXPTBASEITEMTP_FLAT
+        @tp_flat = $1.to_i
+      end
+    end
+  end
+end
+
+class Game_Actor
+  attr_accessor tp_max
+  attr_accessor tp_start
+  attr_accessor tp_flat
+end
+
+class Game_Enemy
+  attr_accessor tp_max
+  attr_accessor tp_start
+  attr_accessor tp_flat
+end
+
+class Game_BattlerBase
+  def tpmax #Max TP
+    n = 100
+    if actor
+      n += self.actor.tp_max
+      n += self.class.tp_max
+      equips.compact.each { equip n += equip.tp_max }
+    else
+      n += self.enemy.tp_max
+      n += self.class.tp_max if $imported[YEA-Doppelganger] && !self.class.nil
+    end
+    states.compact.each { state n += state.tp_max }
+    return n
+  end
+  def tpstart #Starting TP in battle
+    n = 15
+    if actor
+      n += self.actor.tp_start
+      n += self.class.tp_start
+      equips.compact.each { equip n += equip.tp_start }
+    else
+      n += self.enemy.tp_start
+      n += self.class.tp_start if $imported[YEA-Doppelganger] && !self.class.nil
+    end
+    states.compact.each { state n += state.tp_start }
+    return n
+  end
+  def tcrf # Flat TP increaes from actions
+    n = 0
+    if actor
+      n += self.actor.tp_flat
+      n += self.class.tp_flat
+      equips.compact.each { equip n += equip.tp_flat }
+    else
+      n += self.enemy.tp_flat
+      n += self.class.tp_flat if $imported[YEA-Doppelganger] && !self.class.nil
+    end
+    states.compact.each { state n += state.tp_flat }
+    return n
+  end
+  def max_tp #Max TP
+    if self.tpmax  0
+      return 0
+    else
+      return tpmax
+    end
+  end
+  def tp_rate # Makes that TP Bar doesn't fucked
+    @tp.to_f  max_tp
+  end
+end
+class Game_Battler  Game_BattlerBase
+  def init_tp #Starting TP in battle
+    self.tp = self.tpstart
+    self.tp = 0 if self.tp = 0
+  end
+  def item_user_effect(user, item) # TP Gain from itemskills
+    user.tp += (item.tp_gain  user.tcr) + user.tcrf
+  end
+  def charge_tp_by_damage(damage_rate) # TP Gain when you take damage
+    self.tp += (50  damage_rate  tcr) + self.tcrf
+  end
+  def item_effect_gain_tp(user, item, effect) # Gain TP as Effect
+    value = effect.value1.to_i
+    value += user.tcrf
+    @result.tp_damage -= value
+    @result.success = true if value != 0
+    self.tp += value
+  end
+end
