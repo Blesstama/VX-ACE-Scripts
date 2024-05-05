@@ -1,6 +1,6 @@
 #==============================================================================
 # 
-# ▼ Blesstama - Flat ATK/DEF/CRIT multipler bonuses v0.01
+# ▼ Blesstama - ATK/REC/DEF/CRIT bonuses v0.02
 # -- Last Updated: 06.02.2024
 # -- Level: Easy
 # -- Requires: n/a
@@ -30,6 +30,18 @@
 # <def flat: +(-)x>
 # adds flat damage reduction while taking damage 
 # (goes after calculating flat atk bonus)
+#
+# <heal HP flat: +(-)x>
+# adds flat increase to any heal skills (goes before any other calculations)
+#
+# <heal MP flat: +(-)x>
+# adds flat increase to any heal skills (goes before any other calculations)
+#
+# <heal HP self flat: +(-)x>
+# adds flat increase to any heal user receive (goes before any other calculations)
+#
+# <heal MP self flat: +(-)x>
+# adds flat increase to any heal user receive (goes before any other calculations)
 # 
 # <def guard flat: +(-)x>
 # adds flat damage reduction while guarding
@@ -49,6 +61,10 @@ module BLESS
   module BASEITEM
     
     ATK_FLAT = /<(?:ATK_FLAT|atk flat):[ ]([\+\-]\d+)>/i
+    HEAL_HP_FLAT = /<(?:HEAL_HP_FLA|heal hp flat):[ ]([\+\-]\d+)>/i
+    HEAL_SP_FLAT = /<(?:HEAL_MP_FLA|heal mp flat):[ ]([\+\-]\d+)>/i
+    HEAL_HP_SELF_FLAT = /<(?:HEAL_HP_SELF_FLAT|heal hp self flat):[ ]([\+\-]\d+)>/i
+    HEAL_SP_SELF_FLAT = /<(?:HEAL_SP_SELF_FLAT|heal sp self flat):[ ]([\+\-]\d+)>/i
     ATK_CRIT_FLAT = /<(?:ATK_CRIT_FLAT|atk crit flat):[ ]([\+\-]\d+)>/i
     DEF_FLAT = /<(?:DEF_FLAT|def flat):[ ]([\+\-]\d+)>/i
     DEF_GUARD_FLAT = /<(?:DEF_GUARD_FLAT|def guard flat):[ ]([\+\-]\d+)>/i
@@ -95,6 +111,10 @@ class RPG::BaseItem
   # public instance variables
   #--------------------------------------------------------------------------
   attr_accessor :atk_flat
+  attr_accessor :heal_hp_flat
+  attr_accessor :heal_sp_flat
+  attr_accessor :heal_hp_self_flat
+  attr_accessor :heal_sp_self_flat
   attr_accessor :atk_crit_flat
   attr_accessor :def_flat
   attr_accessor :def_guard_flat
@@ -105,6 +125,10 @@ class RPG::BaseItem
   #--------------------------------------------------------------------------
   def load_notetags_bsl
     @atk_flat = 0
+    @heal_hp_flat = 0
+    @heal_sp_flat = 0
+    @heal_hp_self_flat = 0
+    @heal_sp_self_flat = 0
     @atk_crit_flat = 0
     @def_flat = 0
     @def_guard_flat = 0
@@ -115,6 +139,14 @@ class RPG::BaseItem
       #---
       when BLESS::REGEXP::BASEITEM::ATK_FLAT
         @atk_flat = $1.to_i
+      when BLESS::REGEXP::BASEITEM::HEAL_HP_FLAT
+        @heal_hp_flat = $1.to_i
+      when BLESS::REGEXP::BASEITEM::HEAL_SP_FLAT
+        @heal_sp_flat = $1.to_i
+      when BLESS::REGEXP::BASEITEM::HEAL_HP_SELF_FLAT
+        @heal_hp_self_flat = $1.to_i
+      when BLESS::REGEXP::BASEITEM::HEAL_SP_SELF_FLAT
+        @heal_sp_self_flat = $1.to_i
       when BLESS::REGEXP::BASEITEM::ATK_CRIT_FLAT
         @atk_crit_flat = $1.to_i
       when BLESS::REGEXP::BASEITEM::DEF_FLAT
@@ -151,6 +183,70 @@ class Game_BattlerBase
       n += self.class.atk_flat if $imported["YEA-Doppelganger"] && !self.class.nil?
     end
     states.compact.each { |state| n += state.atk_flat }
+    return n
+  end
+  #--------------------------------------------------------------------------
+  # new method: rechf
+  #--------------------------------------------------------------------------
+  def rechf
+    n = 0
+    if actor?
+      n += self.actor.heal_hp_flat
+      n += self.class.heal_hp_flat
+      equips.compact.each { |equip| n += equip.heal_hp_flat }
+    else
+      n += self.enemy.heal_hp_flat
+      n += self.class.heal_hp_flat if $imported["YEA-Doppelganger"] && !self.class.nil?
+    end
+    states.compact.each { |state| n += state.heal_hp_flat }
+    return n
+  end
+  #--------------------------------------------------------------------------
+  # new method: recsf
+  #--------------------------------------------------------------------------
+  def recsf
+    n = 0
+    if actor?
+      n += self.actor.heal_sp_flat
+      n += self.class.heal_sp_flat
+      equips.compact.each { |equip| n += equip.heal_sp_flat }
+    else
+      n += self.enemy.heal_sp_flat
+      n += self.class.heal_sp_flat if $imported["YEA-Doppelganger"] && !self.class.nil?
+    end
+    states.compact.each { |state| n += state.heal_sp_flat }
+    return n
+  end
+  #--------------------------------------------------------------------------
+  # new method: recf
+  #--------------------------------------------------------------------------
+  def recsh
+    n = 0
+    if actor?
+      n += self.actor.heal_hp_self_flat
+      n += self.class.heal_hp_self_flat
+      equips.compact.each { |equip| n += equip.heal_hp_self_flat }
+    else
+      n += self.enemy.heal_hp_self_flat
+      n += self.class.heal_hp_self_flat if $imported["YEA-Doppelganger"] && !self.class.nil?
+    end
+    states.compact.each { |state| n += state.heal_hp_self_flat }
+    return n
+  end
+  #--------------------------------------------------------------------------
+  # new method: recf
+  #--------------------------------------------------------------------------
+  def recss
+    n = 0
+    if actor?
+      n += self.actor.heal_sp_self_flat
+      n += self.class.heal_sp_self_flat
+      equips.compact.each { |equip| n += equip.heal_sp_self_flat }
+    else
+      n += self.enemy.heal_sp_self_flat
+      n += self.class.heal_sp_self_flat if $imported["YEA-Doppelganger"] && !self.class.nil?
+    end
+    states.compact.each { |state| n += state.heal_sp_self_flat }
     return n
   end
   #--------------------------------------------------------------------------
@@ -225,44 +321,76 @@ end # Game_BattlerBase
 # 
 # ▼ Overwriting how damage works + same for guard
 # 
-#~ #==============================================================================
+#==============================================================================
 class Game_Battler < Game_BattlerBase
-  alias :original_make_damage_value :make_damage_value
   def make_damage_value(user, item)
-    if (user.actor? == self.actor?) != (self.actor? == true)
-      value += user.atkf
+    value = item.damage.eval(user, self, $game_variables)
+    value += user.atkf if (user.actor? != self.actor?) # flat atk increase
+    value -= self.deff if (user.actor? != self.actor?) # flat def decrease
+    value *= item_element_rate(user, item)
+    value *= pdr if item.physical?
+    value *= mdr if item.magical?
+    if item.damage.recover? # the heal part
+      if item.damage.to_hp? # the heal flat addon hp
+        value -= user.rechf
+        value -= self.recsh
+      end
+      if item.damage.to_mp? # the heal flat addon sp
+       value -= user.recsf
+       value -= self.recss
+      end
+      value *= rec
     end
-    if (user.actor? == self.actor?) != (self.actor? == true)
-      value -= self.deff
-    end
-    original_make_damage_value(user, item) # Вызываем оригинальный метод
-  end
-
-  #--------------------------------------------------------------------------
-  # * Applying Variance
-  #--------------------------------------------------------------------------
-  def apply_variance(damage, variance)
-    amp = [damage.abs * variance / 100, 0].max.to_i
-    var = rand(amp + 1) + rand(amp + 1) - amp
-    damage >= 0 ? damage + var : damage - var
+    #the heal part over
+    @result.critical = true if self.state?(6) == true
+    value = apply_critical(user, value) if @result.critical == true
+    value = apply_variance(value, item.damage.variance)
+    apply_guard(user, value) if guard?
+    @result.make_damage(value.to_i, item)
   end
   #--------------------------------------------------------------------------
   # * Apply Critical
   #--------------------------------------------------------------------------
   def apply_critical(user, damage)
     value2 = 2
-    value2 += user.critm
-    damage += user.atkfc if (user.actor? == self.actor?) != (self.actor? == true)
+    value2 += user.critm #crit fat multipler
     damage *= value2
-    damage
+    damage += user.atkfc if (user.actor? != self.actor?) # crit flat damage
   end
   #--------------------------------------------------------------------------
   # * Applying Guard Adjustment
   #--------------------------------------------------------------------------
   def apply_guard(user, damage)
     damage /= (2 * grd)
-    damage -= deffg if (user.actor? == self.actor?) != (self.actor? == true)
-    damage
+    damage += user.atkfc if (user.actor? != self.actor?) # flat def guard reduction
+  end
+  #--------------------------------------------------------------------------
+  # * [HP Recovery] Effect
+  #--------------------------------------------------------------------------
+  def item_effect_recover_hp(user, item, effect)
+    value = (mhp * effect.value1 + effect.value2)
+    value += user.rechf
+    value += self.recsh
+    value *= rec
+    value *= user.pha if item.is_a?(RPG::Item)
+    value = value.to_i
+    @result.hp_damage -= value
+    @result.success = true
+    self.hp += value
+  end
+  #--------------------------------------------------------------------------
+  # * [MP Recovery] Effect
+  #--------------------------------------------------------------------------
+  def item_effect_recover_mp(user, item, effect)
+    value = (mmp * effect.value1 + effect.value2) 
+    value -= user.recsf
+    value -= self.recss
+    value *= rec
+    value *= user.pha if item.is_a?(RPG::Item)
+    value = value.to_i
+    @result.mp_damage -= value
+    @result.success = true if value != 0
+    self.mp += value
   end
 end
 #==============================================================================
