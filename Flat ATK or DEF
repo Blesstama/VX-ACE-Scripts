@@ -21,34 +21,64 @@
 # -----------------------------------------------------------------------------
 # Actor/Class/Weapon/Armor/State Notetags - These notetags go in the X notebox in the database.
 # -----------------------------------------------------------------------------
-# <atk flat: +(-)x>
+# <atk flat: FORMULA>
 # adds flat damage to any damage skills (goes before any other calculations)
 #
-# <atk crit flat: +(-)x>
+# <atk crit flat: FORMULA>
 # adds flat damage to any damage skills (goes after any other calculations)
 #
-# <def flat: +(-)x>
+# <def flat: FORMULA>
 # adds flat damage reduction while taking damage 
 # (goes after calculating flat atk bonus)
 #
-# <heal HP flat: +(-)x>
+# <heal HP flat: FORMULA>
 # adds flat increase to any heal skills (goes before any other calculations)
 #
-# <heal MP flat: +(-)x>
+# <heal MP flat: FORMULA>
 # adds flat increase to any heal skills (goes before any other calculations)
 #
-# <heal HP self flat: +(-)x>
+# <heal HP self flat: FORMULA>
 # adds flat increase to any heal user receive (goes before any other calculations)
 #
-# <heal MP self flat: +(-)x>
+# <heal MP self flat: FORMULA>
 # adds flat increase to any heal user receive (goes before any other calculations)
 # 
-# <def guard flat: +(-)x>
-# adds flat damage reduction while guarding
-# (goes after applying grd effect)
+# <def guard flat: FORMULA>
+# adds flat damage reduction while guarding (goes after applying grd effect)
 #
-# <crit multipler: +(-)x>
+# <crit multipler: FORMULA>
 # increase/decrease crit multipler by said number
+#
+# <hp regen flat: FORMULA>
+# recover hp in end of turn by flat number
+#
+# <mp regen flat: FORMULA>
+# recover mp in end of turn by flat number
+#
+# <tp regen flat: FORMULA>
+# recover mp in end of turn by flat number
+#
+# <atk flat: FORMULA>
+# <atk crit flat: FORMULA>
+# <def flat: FORMULA>
+# <heal HP flat: FORMULA>
+# <heal MP flat: FORMULA>
+# <heal HP self flat: FORMULA>
+# <heal MP self flat: FORMULA>
+# <def guard flat: FORMULA>
+# <crit multipler: FORMULA>
+# <hp regen flat: FORMULA>
+# <mp regen flat: FORMULA>
+# <tp regen flat: FORMULA>
+#
+# Where the FORMULA is any valid ruby formula that returns a number.
+# You can use the following variables in your formula:
+#     a - the current enemy/actor
+#     p - game party
+#     t - game troop
+#     v - game variables
+#     s - game switches
+#
 #
 #==============================================================================
 # ▼ Editting anything past this point may potentially result in causing
@@ -56,266 +86,73 @@
 # halitosis so edit at your own risk.
 #==============================================================================
 
-module BLESS
-  module REGEXP
-  module BASEITEM
-    
-    ATK_FLAT = /<(?:ATK_FLAT|atk flat):[ ]([\+\-]\d+)>/i
-    HEAL_HP_FLAT = /<(?:HEAL_HP_FLA|heal hp flat):[ ]([\+\-]\d+)>/i
-    HEAL_SP_FLAT = /<(?:HEAL_MP_FLA|heal mp flat):[ ]([\+\-]\d+)>/i
-    HEAL_HP_SELF_FLAT = /<(?:HEAL_HP_SELF_FLAT|heal hp self flat):[ ]([\+\-]\d+)>/i
-    HEAL_SP_SELF_FLAT = /<(?:HEAL_SP_SELF_FLAT|heal sp self flat):[ ]([\+\-]\d+)>/i
-    ATK_CRIT_FLAT = /<(?:ATK_CRIT_FLAT|atk crit flat):[ ]([\+\-]\d+)>/i
-    DEF_FLAT = /<(?:DEF_FLAT|def flat):[ ]([\+\-]\d+)>/i
-    DEF_GUARD_FLAT = /<(?:DEF_GUARD_FLAT|def guard flat):[ ]([\+\-]\d+)>/i
-    CRIT_MULTIPLER = /<(?:CRIT_MULTIPLER|crit multipler):[ ]([\+\-]?\d+(\.\d+)?)>/i;
-    
-  end # BASEITEM
-  end # REGEXP
-end # YEA
-
-module DataManager
-  
-  #--------------------------------------------------------------------------
-  # alias method: load_database
-  #--------------------------------------------------------------------------
-  class <<self; alias load_database_bsl load_database; end
-  def self.load_database
-    load_database_bsl
-    load_notetags_bsl
-  end
-  
-  #--------------------------------------------------------------------------
-  # new method: load_notetags_bsl
-  #--------------------------------------------------------------------------
-  def self.load_notetags_bsl
-    groups = [$data_actors, $data_classes, $data_skills, $data_weapons,
-      $data_armors, $data_enemies, $data_states]
-    for group in groups
-      for obj in group
-        next if obj.nil?
-        obj.load_notetags_bsl
-      end
-    end
-  end
-  
-end # DataManager
-
-#==============================================================================
-# ■ RPG::BaseItem
-#==============================================================================
-
-class RPG::BaseItem
-  
-  #--------------------------------------------------------------------------
-  # public instance variables
-  #--------------------------------------------------------------------------
-  attr_accessor :atk_flat
-  attr_accessor :heal_hp_flat
-  attr_accessor :heal_sp_flat
-  attr_accessor :heal_hp_self_flat
-  attr_accessor :heal_sp_self_flat
-  attr_accessor :atk_crit_flat
-  attr_accessor :def_flat
-  attr_accessor :def_guard_flat
-  attr_accessor :crit_multipler
-  
-  #--------------------------------------------------------------------------
-  # common cache: load_notetags_scm
-  #--------------------------------------------------------------------------
-  def load_notetags_bsl
-    @atk_flat = 0
-    @heal_hp_flat = 0
-    @heal_sp_flat = 0
-    @heal_hp_self_flat = 0
-    @heal_sp_self_flat = 0
-    @atk_crit_flat = 0
-    @def_flat = 0
-    @def_guard_flat = 0
-    @crit_multipler = 0
-    #---
-    self.note.split(/[\r\n]+/).each { |line|
-      case line
-      #---
-      when BLESS::REGEXP::BASEITEM::ATK_FLAT
-        @atk_flat = $1.to_i
-      when BLESS::REGEXP::BASEITEM::HEAL_HP_FLAT
-        @heal_hp_flat = $1.to_i
-      when BLESS::REGEXP::BASEITEM::HEAL_SP_FLAT
-        @heal_sp_flat = $1.to_i
-      when BLESS::REGEXP::BASEITEM::HEAL_HP_SELF_FLAT
-        @heal_hp_self_flat = $1.to_i
-      when BLESS::REGEXP::BASEITEM::HEAL_SP_SELF_FLAT
-        @heal_sp_self_flat = $1.to_i
-      when BLESS::REGEXP::BASEITEM::ATK_CRIT_FLAT
-        @atk_crit_flat = $1.to_i
-      when BLESS::REGEXP::BASEITEM::DEF_FLAT
-        @def_flat = $1.to_i
-      when BLESS::REGEXP::BASEITEM::DEF_GUARD_FLAT
-        @def_guard_flat = $1.to_i
-      when BLESS::REGEXP::BASEITEM::CRIT_MULTIPLER
-        @crit_multipler = $1.to_f
-      #---
-      end
-    } # self.note.split
-    #---
-  end
-  
-end # RPG::BaseItem
-
 #==============================================================================
 # ■ Game_BattlerBase
 #==============================================================================
 
+class Game_Enemy < Game_Battler
+  def note
+    enemy ? enemy.note : ""
+  end
+
+  def get_all_notes(*args)
+    notes = ""
+    notes += note if !args.include?(:self)
+    states.compact.each {|state| notes += state.note } if !args.include?(:state)
+    notes
+  end
+end
+
+class Game_Actor < Game_Battler
+  def note
+    actor ? actor.note : ""
+  end
+
+  def get_all_notes(*args)
+    notes = ""
+    notes += note if !args.include?(:self)
+    notes += self.class.note if !args.include?(:class)
+    equips.compact.each {|equip| notes += equip.note } if !args.include?(:equip)
+    states.compact.each {|state| notes += state.note } if !args.include?(:state)
+    notes
+  end
+end
+
 class Game_BattlerBase
-  
-  #--------------------------------------------------------------------------
-  # new method: atkf
-  #--------------------------------------------------------------------------
-  def atkf
-    n = 0
-    if actor?
-      n += self.actor.atk_flat
-      n += self.class.atk_flat
-      equips.compact.each { |equip| n += equip.atk_flat }
-    else
-      n += self.enemy.atk_flat
-      n += self.class.atk_flat if $imported["YEA-Doppelganger"] && !self.class.nil?
-    end
-    states.compact.each { |state| n += state.atk_flat }
-    return n
+
+  def get_flat_value(regex)
+    regexp = Regexp.new(regex, Regexp::IGNORECASE)
+    array = get_all_notes.scan(regexp).collect {|i| eval_formula(i.first) }
+    return array[0].to_i
   end
-  #--------------------------------------------------------------------------
-  # new method: rechf
-  #--------------------------------------------------------------------------
-  def rechf
-    n = 0
-    if actor?
-      n += self.actor.heal_hp_flat
-      n += self.class.heal_hp_flat
-      equips.compact.each { |equip| n += equip.heal_hp_flat }
-    else
-      n += self.enemy.heal_hp_flat
-      n += self.class.heal_hp_flat if $imported["YEA-Doppelganger"] && !self.class.nil?
+
+
+  FLAT_VALUES = {
+    atkf: "<(?:ATK_FLAT|atk flat): (.*?)>",
+    rechf: "<(?:HEAL_HP_FLAT|heal hp flat):(.*?)>",
+    recsf: "<(?:HEAL_MP_FLAT|heal mp flat):(.*?)>",
+    recsh: "<(?:HEAL_HP_SELF_FLAT|heal hp self flat):(.*?)>",
+    recss: "<(?:HEAL_MP_SELF_FLAT|heal mp self flat):(.*?)>",
+    atkfc: "<(?:ATK_CRIT_FLAT|atk crit flat):(.*?)>",
+    deff: "<(?:DEF_FLAT|def flat):(.*?)>",
+    deffg: "<(?:DEF_GUARD_FLAT|def guard flat):(.*?)>",
+    critm: "<(?:CRIT_MULTIPLER|crit multipler):(.*?)>",
+    hrgf: "<(?:HP_REGEN_FLAT|hp regen flat):(.*?)>",
+    mrgf: "<(?:MP_REGEN_FLAT|mp regen flat):(.*?)>",
+    trgf: "<(?:TP_REGEN_FLAT|tp regen flat):(.*?)>"
+  }
+
+
+  FLAT_VALUES.each do |method_name, regex|
+    define_method(method_name) do
+      get_flat_value(regex)
     end
-    states.compact.each { |state| n += state.heal_hp_flat }
-    return n
   end
-  #--------------------------------------------------------------------------
-  # new method: recsf
-  #--------------------------------------------------------------------------
-  def recsf
-    n = 0
-    if actor?
-      n += self.actor.heal_sp_flat
-      n += self.class.heal_sp_flat
-      equips.compact.each { |equip| n += equip.heal_sp_flat }
-    else
-      n += self.enemy.heal_sp_flat
-      n += self.class.heal_sp_flat if $imported["YEA-Doppelganger"] && !self.class.nil?
-    end
-    states.compact.each { |state| n += state.heal_sp_flat }
-    return n
+
+  def eval_formula(formula, p=$game_party, s=$game_switches, t=$game_troop, v=$game_variables)
+    eval(formula)
   end
-  #--------------------------------------------------------------------------
-  # new method: recf
-  #--------------------------------------------------------------------------
-  def recsh
-    n = 0
-    if actor?
-      n += self.actor.heal_hp_self_flat
-      n += self.class.heal_hp_self_flat
-      equips.compact.each { |equip| n += equip.heal_hp_self_flat }
-    else
-      n += self.enemy.heal_hp_self_flat
-      n += self.class.heal_hp_self_flat if $imported["YEA-Doppelganger"] && !self.class.nil?
-    end
-    states.compact.each { |state| n += state.heal_hp_self_flat }
-    return n
-  end
-  #--------------------------------------------------------------------------
-  # new method: recf
-  #--------------------------------------------------------------------------
-  def recss
-    n = 0
-    if actor?
-      n += self.actor.heal_sp_self_flat
-      n += self.class.heal_sp_self_flat
-      equips.compact.each { |equip| n += equip.heal_sp_self_flat }
-    else
-      n += self.enemy.heal_sp_self_flat
-      n += self.class.heal_sp_self_flat if $imported["YEA-Doppelganger"] && !self.class.nil?
-    end
-    states.compact.each { |state| n += state.heal_sp_self_flat }
-    return n
-  end
-  #--------------------------------------------------------------------------
-  # new method: atkfc
-  #--------------------------------------------------------------------------
-  def atkfc
-    n = 0
-    if actor?
-      n += self.actor.atk_crit_flat
-      n += self.class.atk_crit_flat
-      equips.compact.each { |equip| n += equip.atk_crit_flat }
-    else
-      n += self.enemy.atk_crit_flat
-      n += self.class.atk_crit_flat if $imported["YEA-Doppelganger"] && !self.class.nil?
-    end
-    states.compact.each { |state| n += state.atk_crit_flat }
-    return n
-  end
-  #--------------------------------------------------------------------------
-  # new method: deff
-  #--------------------------------------------------------------------------
-  def deff
-    n = 0
-    if actor?
-      n += self.actor.def_flat
-      n += self.class.def_flat
-      equips.compact.each { |equip| n += equip.def_flat }
-    else
-      n += self.enemy.def_flat
-      n += self.class.def_flat if $imported["YEA-Doppelganger"] && !self.class.nil?
-    end
-    states.compact.each { |state| n += state.def_flat }
-    return n
-  end
-  #--------------------------------------------------------------------------
-  # new method: deffg
-  #--------------------------------------------------------------------------
-  def deffg
-    n = 0
-    if actor?
-      n += self.actor.def_guard_flat
-      n += self.class.def_guard_flat
-      equips.compact.each { |equip| n += equip.def_guard_flat }
-    else
-      n += self.enemy.def_guard_flat
-      n += self.class.def_guard_flat if $imported["YEA-Doppelganger"] && !self.class.nil?
-    end
-    states.compact.each { |state| n += state.def_guard_flat }
-    return n
-  end
-  #--------------------------------------------------------------------------
-  # new method: critm
-  #--------------------------------------------------------------------------
-  def critm
-    n = 0
-    if actor?
-      n += self.actor.crit_multipler
-      n += self.class.crit_multipler
-      equips.compact.each { |equip| n += equip.crit_multipler }
-    else
-      n += self.enemy.crit_multipler
-      n += self.class.crit_multipler if $imported["YEA-Doppelganger"] && !self.class.nil?
-    end
-    states.compact.each { |state| n += state.crit_multipler }
-    n
-    return n
-  end
-  
-end # Game_BattlerBase
+end
 
 #==============================================================================
 # 
@@ -324,7 +161,10 @@ end # Game_BattlerBase
 #==============================================================================
 class Game_Battler < Game_BattlerBase
   def make_damage_value(user, item)
-    value = item.damage.eval(user, self, $game_variables)
+    puts "flat atk: #{user.atkf}, atk crit flat: #{user.atkfc}, crit multipler: #{user.critm}"
+    puts "heal hp flat: #{user.rechf}, heal hp flat self: #{user.recsh}, def flat guard: #{user.deffg}"
+    puts "heal mp flat: #{user.recsf}, heal mp flat self: #{user.recss}, def flat: #{user.deff}"
+    puts "hp flat regen: #{user.hrgf}, mp flat regen: #{user.mrgf}, tp flat regen: #{user.trgf}"
     value += user.atkf if (user.actor? != self.actor?) # flat atk increase
     value -= self.deff if (user.actor? != self.actor?) # flat def decrease
     value *= item_element_rate(user, item)
@@ -342,7 +182,6 @@ class Game_Battler < Game_BattlerBase
       value *= rec
     end
     #the heal part over
-    @result.critical = true if self.state?(6) == true
     value = apply_critical(user, value) if @result.critical == true
     value = apply_variance(value, item.damage.variance)
     apply_guard(user, value) if guard?
@@ -362,7 +201,7 @@ class Game_Battler < Game_BattlerBase
   #--------------------------------------------------------------------------
   def apply_guard(user, damage)
     damage /= (2 * grd)
-    damage += user.atkfc if (user.actor? != self.actor?) # flat def guard reduction
+    damage -= user.deffg if (user.actor? != self.actor?) # flat def guard reduction
   end
   #--------------------------------------------------------------------------
   # * [HP Recovery] Effect
@@ -391,6 +230,33 @@ class Game_Battler < Game_BattlerBase
     @result.mp_damage -= value
     @result.success = true if value != 0
     self.mp += value
+  end
+  #--------------------------------------------------------------------------
+  # * HP Regeneration
+  #--------------------------------------------------------------------------
+  def regenerate_hp
+    damage = -(mhp * hrg * rec).to_i
+    damage -= hrgf
+    perform_map_damage_effect if $game_party.in_battle && damage > 0
+    @result.hp_damage = [damage, max_slip_damage].min
+    self.hp -= @result.hp_damage
+  end
+  #--------------------------------------------------------------------------
+  # * MP Regeneration
+  #--------------------------------------------------------------------------
+  def regenerate_mp
+    @result.mp_damage = -(mmp * mrg * rec).to_i
+    @result.mp_damage -= mrgf
+    self.mp -= @result.mp_damage
+  end
+  #--------------------------------------------------------------------------
+  # * TP Regeneration
+  #--------------------------------------------------------------------------
+  def regenerate_tp
+    tprg = 100 * trg
+    tprg += trgf
+    tprg *= tcr
+    self.tp += tprg
   end
 end
 #==============================================================================
