@@ -1,0 +1,37 @@
+class Game_Battler < Game_BattlerBase
+  #--------------------------------------------------------------------------
+  # * Check if battler has any buffed parameters
+  #--------------------------------------------------------------------------
+  def buffed?
+    @buffs.any? { |param| param > 0 }
+  end
+  #--------------------------------------------------------------------------
+  # * Check if battler has any debuffed parameters
+  #--------------------------------------------------------------------------
+  def debuffed?
+    @buffs.any? { |param| param < 0 }
+  end
+  #--------------------------------------------------------------------------
+  # * Add Buff (Stage Based)
+  #--------------------------------------------------------------------------
+  def add_buffs(param_id, turns, size)
+    return unless alive?
+    @buffs[param_id] += size unless buff_max?(param_id)
+    erase_buff(param_id) if debuff?(param_id)
+    overwrite_buff_turns(param_id, turns)
+    @result.added_buffs.push(param_id).uniq!
+    refresh
+  end
+  #--------------------------------------------------------------------------
+  # * Add Debuff (Stage Based)
+  #--------------------------------------------------------------------------
+  def add_debuffs(param_id, turns, size)
+    return unless alive?
+    size = 1 if size.is_a? == true
+    @buffs[param_id] -= size unless debuff_max?(param_id)
+    erase_buff(param_id) if buff?(param_id)
+    overwrite_buff_turns(param_id, turns)
+    @result.added_debuffs.push(param_id).uniq!
+    refresh
+  end
+end
