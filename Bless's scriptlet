@@ -1,3 +1,35 @@
+#--------------------------------------------------------------------------
+# * 1)Atk Speed Fix
+#--------------------------------------------------------------------------
+class Game_Action
+  def speed
+    speed = subject.agi + rand(5 + subject.agi / 4)
+    speed += item.speed if item
+    speed += subject.atk_speed if item.is_a?(RPG::Skill)
+    speed
+  end
+end	
+#--------------------------------------------------------------------------
+# * 2)Skill Rating Fix
+#--------------------------------------------------------------------------
+class Game_Enemy < Game_Battler
+  def make_actions
+    super
+    return if @actions.empty?
+    action_list = enemy.actions.select {|a| action_valid?(a) }
+    return if action_list.empty?
+    rating_max = action_list.collect {|a| a.rating }.max
+    #rating_zero = rating_max - 3 (old nae nae way)
+    rating_zero = -1
+    action_list.reject! {|a| a.rating <= rating_zero }
+    @actions.each do |action|
+      action.set_enemy_action(select_enemy_action(action_list, rating_zero))
+    end
+  end
+end
+#--------------------------------------------------------------------------
+# * 3)Buffs Add-On
+#--------------------------------------------------------------------------
 class Game_Battler < Game_BattlerBase
   #--------------------------------------------------------------------------
   # * Check if battler has any buffed parameters
@@ -33,5 +65,13 @@ class Game_Battler < Game_BattlerBase
     overwrite_buff_turns(param_id, turns)
     @result.added_debuffs.push(param_id).uniq!
     refresh
+  end
+end
+#--------------------------------------------------------------------------
+# * 4)Substitute Buff
+#--------------------------------------------------------------------------
+class Scene_Battle < Scene_Base
+  def check_substitute(target, item)
+    target.hp < target.mhp / 2 && (!item || !item.certain?)
   end
 end
