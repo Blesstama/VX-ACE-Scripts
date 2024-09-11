@@ -165,6 +165,7 @@ class Game_Battler < Game_BattlerBase
     puts "heal hp flat: #{user.rechf}, heal hp flat self: #{user.recsh}, def flat guard: #{user.deffg}"
     puts "heal mp flat: #{user.recsf}, heal mp flat self: #{user.recss}, def flat: #{user.deff}"
     puts "hp flat regen: #{user.hrgf}, mp flat regen: #{user.mrgf}, tp flat regen: #{user.trgf}"
+    value = item.damage.eval(user, self, $game_variables)
     value += user.atkf if (user.actor? != self.actor?) # flat atk increase
     value -= self.deff if (user.actor? != self.actor?) # flat def decrease
     value *= item_element_rate(user, item)
