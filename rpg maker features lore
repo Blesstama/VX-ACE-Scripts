@@ -1,0 +1,246 @@
+BLESSTAMA'S GUIDE ABOUT FEATURES/TRAITS
+
+OVERALL INFORMATION:
+
+* = these effects multiplied by yourself
+(ex. weapon give 50% effect, armor 25%, you have 12,5% effect totally)
+
++ = these effects stacks with each others
+(ex. weapon give +10% bleed chance, armor +15%, you have 25% totally)
+
+if nothing then they have own effect
+
+CATEGORY 1: RATE
+
+* Element Rate: affects how much damage you take from skill/item if that skill/item has element rate
+(ex. skill have physical element 1k damage, you have physical 50%, you take 500 damage)
+located:Game_Battler, Calculate Damage, value *= item_element_rate(user, item)
+Extra fact:if your skill have normal attack element, it will instead took all elements you have as trait and pick best
+
+* Debuff Rate:affect chance to apply any debuffs
+(ex. all debuffs have 100% chance to apply unless code fuckery, you have 30% resist so if you ignore luk you have, well,
+70% chance to be inflicted instead)
+located:Game_Battler, [Debuff] Effect
+
+* State rate:same as debuff rate, expect for states
+located:Game_Battler, [Add State] Effect: Normal Attack, [Add State] Effect: Normal
+Extra fact:when you apply any states, Normal Attack and Normal doesn't stack with each other
+(ex. you have 10% chance to apply bleed with attacks, skill have 20%, both works independently
+
+State Resist:makes you fully immuned to be applied by any states at all
+Extra fact:yes, you can be immortal if give yourself State Resist:death.
+
+CATEGORY 2: PARAM
+
+*Parameter:affects how much stats you have
+(ex. You have 100 atk, weapon gives 115% atk and armor 125%, you get 143 atk totally)
+
+SHORT EXPLANATION OF EACH STAT
+
+HP:number of how long you exist 
+
+MP:number of your usage for skills most of time
+
+ATK:damage physical (if skill use it)
+
+DEF:defense physical (if skill use it)
+
+MAT:damage magical (if skill use it)
+
+MDF:defense magical (if skill use it)
+
+AGI:how fast you move (affects chance to escape, attack first or being surprised, order of attacking)
+
+(you don't need code cus there's nothing to alter lol)
+
+Extra facts:
+
+1.1)chance to escape works as
+150% - entire enemy troop agi/entire party of your agi
+entire troop/party means:
+you have actors with 999, 150, 34 and 89
+your agi is (999+150+34+89)/4 = 318
+if your team agi is twice higher than enemy one, you always escape, else you can fail and get 10% escape chance buff each fail
+located:BattleManager,  Create Escape Success Probability, def self.make_escape_ratio
+
+1.2)attack first or being surprised
+absolutely useless shit
+base chance to attack first:3%
+if higher agi:5%
+base chance to be surprised:3%
+if higher agi:1%
+located:Game_Party, Calculate Probability of Preemptive Attack, def rate_preemptive(troop_agi)/def rate_surprise(troop_agi)
+
+1.3)order of attack
+all of this is random in term of
+you always have 100% of your agi when 25% of it and 5 flat bonus is random
+example:you have 100 agi, enemy around 120
+you CAN overspeed him if you lucky because
+your max speed:from 100 to 100 + (100/4 + 5) = 130 (100-130)
+enemey max speed:from 120 to 120 + (120/4 + 5) = 155 (120-155)
+there's also 2 more factors:skill speed and actor speed
+actor speed pure trash explained later in category 3: attack
+skill speed:each skill can have bonus to speed. It's purely flat bonus no randomizing or multiplying
+extra facts 2:if you use skill with 2000 skill speed and 500 skill speed, game will take lowest one or 500 skill speed as main bonus.
+located:Game_Action, Calculate Action Speed, def speed
+
+LUK:affects chance to apply debuffs
+
+extra fact:it's dogshit
+so this is formula: (100% + (user luk - target luk) * 0,001, 0).max
+problem 1:if you have advantage, enemy will NEVER be able to apply any states or debuffs on you
+problem 2:you need to REALLY FUCKING TRY to add because you need OVER 1000 luk 
+to have doubled chance to apply anything or being immuned so it's barely exist
+located:Game_Battler, Get Effect Change Rate by Luck, def luk_effect_rate(user)
+
++Ex-Parameters 
+1)HIT, despite calculate by (+10 HIT and +15 HIT means +25 HIT), affects skill as multipler
+Example:if your skill have PHYSICAL HIT TYPE, 80% accuracy and you have 125% HIT, skill have 100% accuracy cus 0,8 * 1,25 = 1
+located:Game_Battler, Calculate Hit Rate of Skill/Item, def item_hit(user, item)
+
+2)EVA/MEV. allow to be dodged from physical/magical skills only
+located:Game_Battler, Calculate Evasion Rate for Skill/Item, def item_eva(user, item)
+
+3)CRI/CEV. allow you have chances to deal critical damage, which is usually x3
+located:Game_Battler, Calculate Critical Rate of Skill/Item, def item_cri(user, item)
+(CEV is multipler as if you have +100% CEV then you immuned to crits, -100% then chance is doubled)
+
+4)CNT/MRF. allow you to dodge enemies skill AND either use skill 1 (CNT) or reflect own skill (MRF)
+located:Game_Battler, Calculate Counterattack/Reflection Rate for Skill/Item
+
+5)HRG/MRG/TRG. allow you to regen related features (H-Health/HP, M-Mana/MP, T-tech points/TP)
+located:Game_Battler, Regenerate HP/MP/TP, located near each others
+
+*SP-Parameters
+1)TRG. Target Rate. Affect how often you would be targeted.
+located:Game_Unit, Random Selection of Target
+
+2)GRD. Guard Rate. Affect how much guard decrease damage
+base decrease:x2 or 50%, 200% GRD mean x4 or 75%, guard never can negate damage.
+located:Game_Battler, Applying Guard Adjustment
+
+3)REC/PHA. Affect how much you recovery when
+REC - increase how much you took (self feature)
+PHA - increase how much you provide (you target someone)
+located:Game_Battler, [HP Recovery] Effect/[MP Recovery]
+
+4)MCR. Affect how much sp skills cost as multipler
+(you have 75% MCR, skill base cost 100, now it's 75)
+located:Game_BattlerBase, Calculate Skill's MP Cost
+
+5)TCR. affects how much TP you get from
+a)dealing damage when skill itself give some tp
+b)taking damage
+located:
+a)Game_Battler, Effect of Skill/Item on Using Side
+b)Game_Battler, Charge TP by Damage Suffered
+
+6)PDR/MDR. affect how much physical/magical damage you take if skill have such type
+located:Game_Battler, Calculate Damage, value *= pdr/value *= mdr
+
+7)FDR. affect how much damage you take...by poison tiles
+located:Game_Actor, Floor Damage Processing
+
+8)EXR. affect how much exp you get from enemy (you have 150% EXP, enemy drop 100 exp, you took 150 exp)
+located:Game_Actor, Calculate Final EXP Rate
+
+CATEGORY 3: ATTACK
+
+1)Atk Element
+remember Extra fact from element rate?
+yeah that's where skills with element:normal attack
+located:Game_Battler, Get Element Modifier for Skill/Item
+
+2)Atk State
+if your skill have Effect:State:Add State:Normal attack
+then your skill have chance to apply any state from that trait
+located:Game_Battler, [Add State] Effect: Normal Attack
+
+3)Atk Speed
+most useless dogshit ever if you don't edit code.
+remember agi explanation of speed of action? yeah atk speed also flat bonus as skill boost...for skill id = 1 or atk. that's all
+located:Game_Action, Calculate Action Speed
+
+4)Atk Times+
+same as atk speed works only for skill id = 1, gives more extra hits.
+located:Game_Action, Targets for Opponents (num = 1 + (attack? ? subject.atk_times_add.to_i : 0)
+
+CATEGORY 4: SKILL
+
+1)Add Skill Type
+allow you use skill type...yea that's self explanatory
+located:Game_BattlerBase, Get Added Skill Types
+
+2)Seal Skill Type
+not allow you to use skill type if you even have it...self explanatory
+located:Game_BattlerBase, Determine if Skill Type Is Disabled
+
+3)Add Skill/Seal skill
+same as types, give actor skill or block it.
+located:Game_BattlerBase, Get Added Skills/Determine if Skill Is Disabled
+
+CATEGORY 5: EQUIP (i will just speedrun it lfmao)
+
+1)Equip Weapon/Armor
+allow you to use weapon/armor with that type of category
+located:sorry not care
+
+2)seal/fix equip
+seal disable ability to equip anything on that slot
+fix doesn't allow change current equip, so you can still have fixed bonus
+located:sorry not care
+
+3)slot type
+either have 2 weapons or 1 weapon 1 shield
+located:sorry not care
+
+CATEGORY 6: OTHER (also fast but not really)
+
+1)Action Times
+allow you to act several times at once, either with chance or luk based. Each instance of it is independent
+(ex. weapon have 25% action chance, armor 25%, shield 25%, character 25%, totally you have 1 fixed action and ability to move up to 4 more times)
+located:Game_Battler, Determine Action Times (good luck read it)
+
+Extra Note: what located below is don't stacks
+
+2)Special Flags
+unique attributes of character
+
+2.1)Auto Battle
+he will move by yourself and use skills, mostly useless if not supported cus it's basically enemy ai
+
+2.2)Guard
+you will always have 50% less damage unless you have buffed GRD (guard state 9 use it) (read GRD to see formula)
+
+2.3)Substitute
+you can take damage instead of your allies. Condition:1)ally should have less than 25% hp 2)your skill can't be certain hit
+located:Scene_Battle, Check Substitute Condition (to change condition)
+
+2.4)Preserve TP
+TP is usually randomized every battle from 0 to 25 but you can make so it's cancelled and instead you keep whatever you had last number. Usually op
+
+3)Collapse Effect
+fancy disappear for bosses, useless for everyone else
+Boss:long fall
+Instant:almost...instant, like 1 sec lol
+not disappear:kept on screen
+
+4)Party ability
+
+4.1)Encounter half, need 50% more steps to trigger
+was 30 became 45
+located:Game_Player, Get Encounter Progress Value
+
+4.2)Encounter None. No random enemies. year.
+
+4.3)Cancel surprise. You can't be ambushed and paralyzed for 1 turn lol
+(read agi lore for seeing)
+
+4.4)Raise Preemetive. You have more chances to start battle first. miiight be good lol cus multipler is 4 (so base is 12% and if agi advantage 20%)
+(read agi lore for seeing 2: electric boogalo)
+
+4.5)Gold Double/Item Chance Double. multiply gold you get in end of battle by 2/increase chance to get item by 2
+for gold location:Game_Troop, Get Multiplier for Gold
+for item location:Game_Enemy, Get Multiplier for Dropped Item Acquisition Probability
+
+
