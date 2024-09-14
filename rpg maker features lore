@@ -22,10 +22,10 @@ Extra fact:if your skill have normal attack element, it will instead took all el
 70% chance to be inflicted instead)
 located:Game_Battler, [Debuff] Effect
 
-* State rate:same as debuff rate, expect for states
+* State rate:same as debuff rate, expect for states (also multipler)
 located:Game_Battler, [Add State] Effect: Normal Attack, [Add State] Effect: Normal
 Extra fact:when you apply any states, Normal Attack and Normal doesn't stack with each other
-(ex. you have 10% chance to apply bleed with attacks, skill have 20%, both works independently
+(ex. you have 10% chance to apply bleed with attacks, skill have 20%, both works independently)
 
 State Resist:makes you fully immuned to be applied by any states at all
 Extra fact:yes, you can be immortal if give yourself State Resist:death.
