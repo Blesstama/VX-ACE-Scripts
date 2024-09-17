@@ -119,13 +119,11 @@ class Game_Actor < Game_Battler
 end
 
 class Game_BattlerBase
-
   def get_flat_value(regex)
     regexp = Regexp.new(regex, Regexp::IGNORECASE)
-    array = get_all_notes.scan(regexp).collect {|i| eval_formula(i.first) }
-    return array[0].to_i
+    array = get_all_notes.scan(regexp).collect { |match| eval_formula(match.first) }
+    return array.sum(&:to_i)
   end
-
 
   FLAT_VALUES = {
     atkf: "<(?:ATK_FLAT|atk flat): (.*?)>",
@@ -141,7 +139,6 @@ class Game_BattlerBase
     mrgf: "<(?:MP_REGEN_FLAT|mp regen flat):(.*?)>",
     trgf: "<(?:TP_REGEN_FLAT|tp regen flat):(.*?)>"
   }
-
 
   FLAT_VALUES.each do |method_name, regex|
     define_method(method_name) do
@@ -183,7 +180,8 @@ class Game_Battler < Game_BattlerBase
       value *= rec
     end
     #the heal part over
-    value = apply_critical(user, value) if @result.critical == true
+    critical_effects(user, item) if @result.critical
+    value = apply_critical(user, value) if @result.critical
     value = apply_variance(value, item.damage.variance)
     apply_guard(user, value) if guard?
     @result.make_damage(value.to_i, item)
@@ -222,9 +220,11 @@ class Game_Battler < Game_BattlerBase
   # * [MP Recovery] Effect
   #--------------------------------------------------------------------------
   def item_effect_recover_mp(user, item, effect)
-    value = (mmp * effect.value1 + effect.value2) 
-    value -= user.recsf
-    value -= self.recss
+    value = (mmp * effect.value1 + effect.value2)
+    puts "#{value}"
+    value += user.recsf
+
+    value += self.recss
     value *= rec
     value *= user.pha if item.is_a?(RPG::Item)
     value = value.to_i
