@@ -27,15 +27,23 @@
 # your parameter of DG/AC will go up/down by X more when someone use item
 # that increase dg/ac
 # -----------------------------------------------------------------------------
+$imported = {} if $imported.nil?
+$imported[:bless_dietary_guilt] = false
 
+if $imported[:bless_dietary_guilt] == true
 #short the text meaning by module
 module BLESS
   module DGAC
     module CUSTOM
+      #check which state be DG overload
+      HP_PAIN = 218
+      #check which state will be AC overload
+      MP_PAIN = 219
       DG_ITEM = /<dg item:[ ]([\+\-]\d+)>/i
       DG_TURN = /<dg turn:[ ]([\+\-]\d+)>/i
       AC_ITEM = /<ac item:[ ]([\+\-]\d+)>/i
       AC_TURN = /<ac turn:[ ]([\+\-]\d+)>/i
+
     end
   end
 end
@@ -115,12 +123,12 @@ class Game_Actor < Game_Battler
   # What does item/skills use when notetag (and adding new state upon going over 100)
   def add_dg_effect(value)
     @dg += (value + self.dgitem)
-    add_state(46) if @dg >= 100
+    add_state(BLESS::DGAC::CUSTOM::HP_PAIN) if @dg >= 100
   end
 
   def add_ac_effect(value)
     @ac += (value + self.acitem)
-    add_state(47) if @ac >= 100
+    add_state(BLESS::DGAC::CUSTOM::MP_PAIN) if @ac >= 100
   end
 end
 
@@ -213,10 +221,10 @@ class Game_Actor < Game_Battler
   
   def make_damage_value(user, item)
     original_make_damage_value(user, item)
-    if item.damage.recover? && self.state?(46)
+    if item.damage.recover? && self.state?(BLESS::DGAC::CUSTOM::HP_PAIN)
       @result.hp_damage *= -1 
     end
-    if item.damage.recover? && self.state?(47)
+    if item.damage.recover? && self.state?(BLESS::DGAC::CUSTOM::MP_PAIN)
       @result.mp_damage *= -1 
     end
   end
@@ -243,15 +251,15 @@ class Game_Actor < Game_Battler
     decrease2 = self.ac - (10 - self.acturn)
     @dg = [decrease1, 0].max
     @ac = [decrease2, 0].max
-    if self.dg <= 99 && self.state?(46)
-      remove_state(46)
-    elsif self.dg >= 100 && !self.state?(46)
-      add_state(46)
+    if self.dg <= 99 && self.state?(BLESS::DGAC::CUSTOM::HP_PAIN)
+      remove_state(BLESS::DGAC::CUSTOM::HP_PAIN)
+    elsif self.dg >= 100 && !self.state?(BLESS::DGAC::CUSTOM::HP_PAIN)
+      add_state(BLESS::DGAC::CUSTOM::HP_PAIN)
     end
-    if self.ac <= 99 && self.state?(47)
-      remove_state(47)
-    elsif self.ac >= 100 && !self.state?(47)
-      add_state(47)
+    if self.ac <= 99 && self.state?(BLESS::DGAC::CUSTOM::MP_PAIN)
+      remove_state(BLESS::DGAC::CUSTOM::MP_PAIN)
+    elsif self.ac >= 100 && !self.state?(BLESS::DGAC::CUSTOM::MP_PAIN)
+      add_state(BLESS::DGAC::CUSTOM::MP_PAIN)
     end
   end
 end
@@ -279,7 +287,7 @@ class Game_Actor < Game_Battler
     value = (mhp * effect.value1 + effect.value2) * rec
     value *= user.pha if item.is_a?(RPG::Item)
     value = value.to_i
-    value *= -1 if self.state?(46)
+    value *= -1 if self.state?(BLESS::DGAC::CUSTOM::HP_PAIN)
     @result.hp_damage -= value
     @result.success = true
     self.hp += value
@@ -291,7 +299,7 @@ class Game_Actor < Game_Battler
     value = (mmp * effect.value1 + effect.value2) * rec
     value *= user.pha if item.is_a?(RPG::Item)
     value = value.to_i
-    value *= -1 if self.state?(47)
+    value *= -1 if self.state?(BLESS::DGAC::CUSTOM::MP_PAIN)
     @result.mp_damage -= value
     @result.success = true if value != 0
     self.mp += value
@@ -373,4 +381,5 @@ class Window_BattleStatus < Window_Selectable
     change_color(normal_color)
     draw_text(240, y, 60, line_height, actor.ac.to_s, 2) unless actor.ac.nil?
   end
+end
 end
