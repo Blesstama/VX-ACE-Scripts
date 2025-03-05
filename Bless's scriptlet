@@ -1,3 +1,11 @@
+class Scene_Battle < Scene_Base 
+  attr_accessor:log_window
+end
+
+class Scene_Map < Scene_Base 
+  attr_accessor:log_window
+end
+
 #--------------------------------------------------------------------------
 # * 1)Atk Speed Fix
 #--------------------------------------------------------------------------
