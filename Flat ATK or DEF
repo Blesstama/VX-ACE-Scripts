@@ -1,6 +1,6 @@
 #==============================================================================
 # 
-# ▼ Blesstama - ATK/REC/DEF/CRIT bonuses v0.02
+# ▼ Blesstama - ATK/REC/DEF/CRIT bonuses v0.1
 # -- Last Updated: 06.02.2024
 # -- Level: Easy
 # -- Requires: n/a
@@ -119,12 +119,14 @@ class Game_Actor < Game_Battler
 end
 
 class Game_BattlerBase
+  # New method to handle flat values
   def get_flat_value(regex)
     regexp = Regexp.new(regex, Regexp::IGNORECASE)
-    array = get_all_notes.scan(regexp).collect { |match| eval_formula(match.first) }
-    return array.sum(&:to_i)
+    array = get_all_notes.scan(regexp).collect {|i| eval_formula(i.first) }
+    return array[0].to_i
   end
 
+  # Define flat value regex patterns
   FLAT_VALUES = {
     atkf: "<(?:ATK_FLAT|atk flat): (.*?)>",
     rechf: "<(?:HEAL_HP_FLAT|heal hp flat):(.*?)>",
@@ -140,6 +142,7 @@ class Game_BattlerBase
     trgf: "<(?:TP_REGEN_FLAT|tp regen flat):(.*?)>"
   }
 
+  # Define methods dynamically using flat value regex patterns
   FLAT_VALUES.each do |method_name, regex|
     define_method(method_name) do
       get_flat_value(regex)
@@ -158,11 +161,8 @@ end
 #==============================================================================
 class Game_Battler < Game_BattlerBase
   def make_damage_value(user, item)
-    puts "flat atk: #{user.atkf}, atk crit flat: #{user.atkfc}, crit multipler: #{user.critm}"
-    puts "heal hp flat: #{user.rechf}, heal hp flat self: #{user.recsh}, def flat guard: #{user.deffg}"
-    puts "heal mp flat: #{user.recsf}, heal mp flat self: #{user.recss}, def flat: #{user.deff}"
-    puts "hp flat regen: #{user.hrgf}, mp flat regen: #{user.mrgf}, tp flat regen: #{user.trgf}"
     value = item.damage.eval(user, self, $game_variables)
+    value += dmg if dmg != 0
     value += user.atkf if (user.actor? != self.actor?) # flat atk increase
     value -= self.deff if (user.actor? != self.actor?) # flat def decrease
     value *= item_element_rate(user, item)
@@ -180,8 +180,7 @@ class Game_Battler < Game_BattlerBase
       value *= rec
     end
     #the heal part over
-    critical_effects(user, item) if @result.critical
-    value = apply_critical(user, value) if @result.critical
+    value = apply_critical(user, value) if @result.critical == true
     value = apply_variance(value, item.damage.variance)
     apply_guard(user, value) if guard?
     @result.make_damage(value.to_i, item)
@@ -191,6 +190,7 @@ class Game_Battler < Game_BattlerBase
   #--------------------------------------------------------------------------
   def apply_critical(user, damage)
     value2 = 2
+    value2 = 2.5 if user.actor?
     value2 += user.critm #crit fat multipler
     damage *= value2
     damage += user.atkfc if (user.actor? != self.actor?) # crit flat damage
@@ -220,11 +220,9 @@ class Game_Battler < Game_BattlerBase
   # * [MP Recovery] Effect
   #--------------------------------------------------------------------------
   def item_effect_recover_mp(user, item, effect)
-    value = (mmp * effect.value1 + effect.value2)
-    puts "#{value}"
-    value += user.recsf
-
-    value += self.recss
+    value = (mmp * effect.value1 + effect.value2) 
+    value -= user.recsf
+    value -= self.recss
     value *= rec
     value *= user.pha if item.is_a?(RPG::Item)
     value = value.to_i
