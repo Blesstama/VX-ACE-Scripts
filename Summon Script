@@ -1,0 +1,840 @@
+#==============================================================================
+# ▼ Blesstama - Summon Script v0.1
+# -----------------------------------------------------------------------------
+# Inspired by: EST - Clone Actor
+# Item/Skill Notetags:
+# These notetags go in the X notebox in the database.
+# -----------------------------------------------------------------------------
+# <Actor Clone>
+# actor id: FORMULA
+# level: FORMULA
+# name: STRING
+# timer: FORMULA
+# </Actor Clone>
+# using this note on skill will add into your party actor, where
+# id is on who actor based on
+# level is on what level summon will appear
+# name is what name that clone will have
+# timer is how long summon will exist (if 2 turns then one when summoned
+# + next one), if none then permanent until end of battle (or if dead
+# in the end of turn in module)
+# keep in mind that said clone will be exactly same as original actor
+# -----------------------------------------------------------------------------
+module Bless
+  DeathGone = true #If true clones will be gone if dead
+end
+
+CallText = "%s joined the murdering!"
+LeaveText = "%s left the battlefield!"
+DeathText = "%s has been murdered!"
+NotText = "%s isn't your summon!"
+
+$imported = {} if $imported.nil?
+$imported["BLESS - CLONE (SUMMONS)"] = true 
+
+class Game_Actor < Game_Battler
+  attr_accessor :custom_actor
+  attr_accessor :timer
+  
+  alias baseinitialize initialize
+  def initialize(actor_id)
+    baseinitialize(actor_id)
+    @custom_actor = false
+    @timer = -1
+  end
+  
+  def set_custom_actor(parameter)
+    @custom_actor = parameter
+  end
+
+  def custom_actor?
+    @custom_actor
+  end
+  
+  def remove_clone(id)
+   if SceneManager.scene_is?(Scene_Battle) && SceneManager.scene.log_window 
+    if $game_actors[id].state?(1)
+      SceneManager.scene.log_window.add_text(sprintf(DeathText, actor.name))
+      SceneManager.scene.log_window.wait
+    else
+      SceneManager.scene.log_window.add_text(sprintf(LeaveText, actor.name))
+      SceneManager.scene.log_window.wait
+    end
+   end
+   $game_party.remove_actor(id)
+  end
+  
+  def update_timer(id)
+    if @timer > 0
+      @timer -= 1
+      remove_clone(id) if @timer <= 0
+    end
+  end
+  
+  def clone_stuff(actor, actor2)
+    equip = []
+    actor2.equips.each_with_index do |equip_item, slot_id|
+      equip << actor2.equips[slot_id]
+      actor2.force_change_equip(slot_id, nil)
+    end
+    for s in 0..7
+      stat = actor2.param_plus(s)
+      actor.add_param(s, stat)
+    end
+    actor.equips.each_with_index do |equip_item, slot_id|
+      actor.force_change_equip(slot_id, equip[slot_id])
+    end
+    actor2.equips.each_with_index do |equip_item, slot_id|
+      actor2.force_change_equip(slot_id, equip[slot_id])
+    end
+    actor2.states.each do |state|
+      actor.add_state(state.id)
+    end
+    actor2.skills.each do |skill|
+      unless actor.skills.include?(skill)
+        actor.learn_skill(skill.id)
+      end
+    end
+  end
+end
+
+class Game_Actors
+  
+  def put(actor_id, actor)
+    @data[actor_id] = actor
+  end
+  
+  def size
+    @data.size
+  end
+  
+  def delete
+    @data.pop()
+  end
+  
+end
+
+class Game_Party < Game_Unit
+  attr_reader :summoned
+  
+  alias regularinitialize initialize
+  def initialize
+    regularinitialize
+    @summoned = 0
+  end
+  
+  def summoned=(number) 
+    @summoned = number
+  end
+  
+  def summon 
+    @summoned
+  end
+  
+  def erase_clones
+    return if $game_party.summon == 0
+    while $game_party.summoned != 0
+      $game_actors.delete
+      $data_actors.pop()
+      $game_party.summoned -= 1
+    end
+  end
+  
+  def add_summon(summon_array)
+    id = summon_array[0].to_i
+    level = summon_array[1].to_i
+    name = summon_array[2]
+    timer = summon_array[3].to_i
+
+    new_actor_data = $data_actors[id].clone
+    new = $data_actors.size
+    $data_actors.push(new_actor_data)
+    
+    actor = Game_Actor.new(new)
+    actor2 = $game_actors[id].clone
+    actor.clone_stuff(actor, actor2)
+    
+    actor.change_level(level, false)
+    actor.name = name
+    actor.timer = timer
+    actor.set_custom_actor(true)
+
+    $game_actors.put(new, actor)
+  
+    $game_party.summoned += 1
+    $game_party.add_actor($game_actors.size - 1)
+    
+    SceneManager.scene.log_window.add_text(sprintf(CallText, actor.name))
+    SceneManager.scene.log_window.wait
+
+    if $imported[:mog_battle_hud_ex] == true 
+      actor.battler_face_name = "Face_" + id.to_s
+      $game_temp.check_screen_xyz_nil rescue nil
+      $game_temp.mbhud_force_refresh = true
+    end
+  end
+  
+end
+
+class Game_Battler
+  alias useitem use_item
+  def use_item(item)
+    useitem(item)
+    return unless item.note.include?("<Actor Clone>")
+    actor_id = nil
+    level = nil
+    name = nil
+    timer = nil
+    if item.note =~ /<Actor Clone>(.*?)<\/Actor Clone>/m
+      properties = $1.strip.split("\n")
+      properties.each do |property|
+        case property.strip
+        when /^actor id:\s*(.+)$/i
+          actor_id = $1.strip
+        when /^level:\s*(.+)$/i
+          level = $1.strip
+        when /^name:\s*(.+)$/i
+          name = $1.strip
+        when /^timer:\s*(.+)$/i
+          timer = $1.strip
+        end
+      end
+    end
+    actor_id2 = eval_summon(actor_id, self) if actor_id
+    level2 = eval_summon(level, self) if level
+    timer2 = eval_summon(timer, self) if timer 
+    level2 ||= $game_actors[self.id].level
+    name2 = name || $game_actors[actor_id2].name
+    timer2 = -1 if timer == nil
+    actor_id2 = actor_id.to_i if actor_id.is_a?(String) && actor_id =~ /^\d+$/
+    summon_stuff = [actor_id2, level2, name2.to_s, timer2]
+    if !$game_party.summoned_members.any? { |actor| actor.id == actor_id2 }
+      SceneManager.scene.log_window.add_text(sprintf(NotText, name2))
+      SceneManager.scene.log_window.wait
+    else
+      $game_party.add_summon(summon_stuff)
+    end
+  end
+  
+  def eval_summon(formula, a, p=$game_party, t=$game_troop, s=$game_switches, v=$game_variables)
+    return eval(formula)
+  end
+end
+
+class Scene_Battle < Scene_Base
+  alias endturn turn_end
+  def turn_end
+    $game_party.members.each do |actor|
+      next if !actor.custom_actor
+      actor.update_timer(actor.id)
+      if Bless::DeathGone && actor.state?(1)
+        actor.remove_clone(actor.id)
+      end
+    end
+    $game_temp.mbhud_force_refresh = true if $imported[:mog_battle_hud_ex] 
+    endturn
+  end
+end
+
+module BattleManager
+  class << self
+    alias_method :battledone, :battle_end
+  end
+  
+  def self.battle_end(result)
+    cleanup_custom_actors unless $game_party.summoned == 0
+    battledone(result)
+  end
+
+  def self.cleanup_custom_actors
+    $game_party.members.each do |actor|
+      actor.remove_clone(actor.id) if actor.custom_actor?
+      $game_temp.mbhud_force_refresh = true if $imported[:mog_battle_hud_ex] 
+    end
+    $game_party.erase_clones
+  end
+end
+
+class Game_Party < Game_Unit
+  attr_reader :summon_list
+  
+  alias summon_system_initialize initialize
+  def initialize
+    summon_system_initialize
+    @summon_list = []
+  end
+
+  def add_summon_team(id)
+    @summon_list << id unless @summon_list.include?(id)
+  end
+  
+  def remove_summon_team(id)
+    @summon_list.delete(id)
+  end
+
+  def summoned_members
+    @summon_list.map { |id| $game_actors[id] }.compact
+  end
+end
+
+class Window_MenuCommand < Window_Command
+  alias summon_menu_make_command_list make_command_list
+  def make_command_list
+    summon_menu_make_command_list
+    add_summon_command if !$game_party.summon_list.empty?
+  end
+  
+  def add_summon_command
+    add_command("Summons", :summon, true)
+  end
+end
+
+class Window_SummonList < Window_Selectable
+  def initialize
+    super(0, 0, Graphics.width / 2, Graphics.height)
+    @top_index = 0
+    refresh
+    select(0)
+    activate
+  end
+  
+  def item
+    @data && index >= 0 ? @data[index] : nil
+  end
+  
+  def data
+    @data
+  end
+
+  def refresh
+    @data = $game_party.summon_list
+    @item_max = @data.size
+    create_contents
+    draw_all_items
+  end
+
+  def draw_all_items
+    @data.each_with_index do |actor_id, index|
+      draw_item(actor_id, index)
+    end
+  end
+  
+  def update_status
+    create_contents  
+    draw_all_items
+  end
+
+  def draw_item(actor_id, index)
+    actor = $game_actors[actor_id]
+    return unless actor
+    item_height = line_height * 4
+    rect = Rect.new(0, (index - @top_index) * item_height, contents.width, item_height)
+    draw_actor_face(actor, rect.x + 4, rect.y + 4)
+    draw_actor_name(actor, rect.x + 108, rect.y)
+    draw_actor_level(actor, rect.x + 108, rect.y + line_height)
+    draw_actor_hp(actor, rect.x + 108, rect.y + line_height * 2)
+    draw_actor_mp(actor, rect.x + 108, rect.y + line_height * 3)
+  end
+
+  def update
+    super
+    update_cursor
+  end
+
+  def update_cursor
+    cursor_rect.set(0, (index - @top_index) * line_height * 4, contents.width, line_height * 4) rescue nil
+  end
+
+  def process_handling
+    return unless active
+    return process_ok if Input.trigger?(:C)
+    return process_cancel if Input.trigger?(:B)
+    return process_up if Input.repeat?(:UP)
+    return process_down if Input.repeat?(:DOWN)
+  end
+
+  def process_up
+    Sound.play_cursor
+    if index > 0
+      select(index - 1)
+      adjust_scroll
+    else
+      select(@data.size - 1)
+      adjust_scroll
+    end
+  end
+
+  def process_down
+    Sound.play_cursor
+    if index < @item_max - 1
+      select(index + 1)
+      adjust_scroll
+    else
+      select(0)
+      adjust_scroll
+    end
+  end
+
+  def adjust_scroll
+    visible_items = (height / (line_height * 4)).floor
+    if index < @top_index
+      @top_index = index
+    end
+    if index >= @top_index + visible_items
+      @top_index = index - visible_items + 1
+    end
+    @top_index = [@top_index, @item_max - visible_items].min
+    @top_index = [@top_index, 0].max
+    refresh
+  end
+end
+
+
+class Window_Commands < Window_Command
+  def initialize(x, y, width, height)
+    super(x, y)
+    self.width, self.height = width, height
+  end
+  
+  def refresh
+    create_contents
+    draw_all_items
+  end
+end
+
+class Window_ItemCategory2 < Window_ItemCategory 
+  def col_max
+    return 2
+  end
+  def make_command_list
+    add_command(Vocab::item,     :item)
+    add_command(Vocab::key_item, :key_item)
+  end
+  def window_width
+    Graphics.width / 2
+  end
+end
+
+class Scene_Menu < Scene_MenuBase
+  alias summon_system_create_command_window create_command_window
+
+  def create_command_window
+    summon_system_create_command_window
+    @command_window.set_handler(:summon, method(:command_summon))
+  end
+
+  def command_summon
+    @command_window.deactivate
+    @status_window.hide if @status_window
+
+    @summon_window = Window_SummonList.new
+    setup_action_window
+
+    @summon_window.set_handler(:ok, method(:on_summon_ok))
+    @summon_window.set_handler(:cancel, method(:on_summon_cancel))
+
+    @summon_window.activate
+    @summon_window.show
+  end
+
+  def setup_action_window
+    @action_window = Window_Commands.new(@summon_window.width + 50, 300, 200, 300)
+    @action_window.deactivate
+    @action_window.hide
+    
+    @action_window.add_command("Skills", :skill)
+    @action_window.add_command("Status", :status)
+    @action_window.add_command("Equip", :equip)
+    @action_window.add_command("Items", :items)
+
+    @action_window.visible = true
+    @action_window.set_handler(:cancel, method(:on_action_cancel))
+
+    @action_window.set_handler(:skill, method(:on_skill))
+    @action_window.set_handler(:status, method(:on_status))
+    @action_window.set_handler(:equip, method(:on_equip))
+    @action_window.set_handler(:items, method(:on_items))
+
+    @action_window.refresh
+  end
+  
+  def on_summon_ok
+    summon_id = @summon_window.data[@summon_window.index]
+    summon = $game_actors[summon_id]
+    @current_summon = summon
+    summon_menu_actions(summon)
+  end
+
+  def summon_menu_actions(summon)
+    @action_window.activate
+    @action_window.select(0)
+  end
+
+  def on_summon_cancel
+    if @summon_window
+      @summon_window.deactivate
+      @summon_window.dispose
+      @summon_window = nil 
+    end
+    if @action_window
+      @action_window.deactivate
+      @action_window.dispose
+      @action_window = nil
+    end
+    @command_window.activate
+    @command_window.show
+    @status_window.show
+  end
+  
+  def on_skill
+    @help_window2 = Window_Help.new
+    @help_window2.viewport = @viewport
+    
+    wy = @help_window2.height
+    @command_window2 = Window_SkillCommand.new(0, wy)
+    @command_window2.viewport = @viewport
+    @command_window2.help_window = @help_window2
+    @command_window2.actor = @current_summon  # Set the actor for skill types
+    
+    @command_window2.set_handler(:skill,    method(:command_skill))
+    @command_window2.set_handler(:cancel,   method(:on_custom_skill_cancel))
+    
+    y = @help_window2.height
+    @status_window2 = Window_SkillStatus.new(@command_window2.width, y)
+    @status_window2.viewport = @viewport
+    @status_window2.actor = @current_summon
+    
+    wx = 0
+    wy = @status_window2.y + @status_window2.height
+    ww = Graphics.width
+    wh = Graphics.height - wy
+    @item_window2 = Window_SkillList.new(wx, wy, ww, wh)
+    @item_window2.actor = @current_summon  # Set the actor for skills
+    @item_window2.viewport = @viewport
+    @item_window2.help_window = @help_window2
+    @item_window2.set_handler(:cancel, method(:on_item_cancel3))
+    @command_window2.skill_window = @item_window2
+  
+    # Refresh the skill windows
+    @command_window2.refresh
+    @item_window2.refresh
+  end
+
+  def command_skill
+    @item_window2.activate
+    @item_window2.select_last
+  end
+  
+  def on_item_cancel3
+    @item_window2.unselect
+    @command_window2.activate
+  end
+  
+  def on_custom_skill_cancel
+    if @help_window2
+      @help_window2.close
+      @help_window2.dispose
+      @help_window2 = nil
+    end
+    if @command_window2
+      @command_window2.close
+      @command_window2.dispose
+      @command_window2 = nil
+    end
+    if @status_window2
+      @status_window2.close
+      @status_window2.dispose
+      @status_window2 = nil
+    end
+    if @item_window2
+      @item_window2.close
+      @item_window2.dispose
+      @item_window2 = nil
+    end
+    @action_window.activate if @action_window 
+  end
+  
+  def on_status
+    if $imported["YEA-StatusMenu"] == true
+      @help_window3 = Window_Help.new
+      
+      wy = @help_window3.height
+      @command_window3 = Window_StatusCommand.new(0, wy)
+      @command_window3.viewport = @viewport
+      @command_window3.actor = @current_summon
+      @command_window3.help_window = @help_window3
+      @command_window3.set_handler(:cancel,   method(:on_custom_status_cancel))
+    
+      wy = @help_window3.height
+      @status_window3 = Window_StatusActor.new(@command_window3.width, wy)
+      @status_window3.viewport = @viewport
+      @status_window3.actor = @current_summon
+      dy = @command_window3.y + @command_window3.height
+      
+      @item_window = Window_StatusItem.new(0, dy, @command_window3)
+      @item_window.viewport = @viewport
+      @item_window.actor = @current_summon
+      @command_window3.item_window = @item_window
+      
+    else
+      @custom_status_window = Window_Status.new(@current_summon)
+      @custom_status_window.set_handler(:ok, method(:on_custom_status_cancel))
+      @custom_status_window.set_handler(:cancel, method(:on_custom_status_cancel))
+      @custom_status_window.activate
+      @custom_status_window.show
+    end
+  end
+
+  def on_custom_status_cancel
+    if @custom_status_window
+      @custom_status_window.close
+      @custom_status_window.dispose
+      @custom_status_window = nil
+    end
+    if @help_window3
+      @help_window3.close
+      @help_window3.dispose
+      @help_window3 = nil
+    end
+    if @command_window3
+      @command_window3.close
+      @command_window3.dispose
+      @command_window3 = nil
+    end
+    if @status_window3
+      @status_window3.close
+      @status_window3.dispose
+      @status_window3 = nil
+    end
+    if @item_window
+      @item_window.close
+      @item_window.dispose
+      @item_window = nil
+    end
+    @action_window.activate if @action_window 
+  end
+
+  def on_equip
+    @help_window = Window_Help.new
+    @status_window1 = Window_EquipStatus.new(0, @help_window.height)
+    wx = @status_window1.width
+    wy = @help_window.height
+    ww = Graphics.width - @status_window1.width
+    @command_window1 = Window_EquipCommand.new(wx, wy, ww)
+    @command_window1.set_handler(:equip,    method(:command_equip))
+    @command_window1.set_handler(:optimize, method(:command_optimize))
+    @command_window1.set_handler(:clear,    method(:command_clear))
+    @command_window1.set_handler(:cancel,   method(:on_custom_equip_cancel))
+    wy = @command_window1.y + @command_window1.height
+    @slot_window = Window_EquipSlot.new(wx, wy, ww)
+    @slot_window.set_handler(:ok,       method(:on_slot_ok))
+    @slot_window.set_handler(:cancel,   method(:on_slot_cancel))
+    wx = 0
+    wy = @slot_window.y + @slot_window.height
+    ww = Graphics.width
+    wh = Graphics.height - wy
+    @item_window = Window_EquipItem.new(wx, wy, ww, wh)
+    @item_window.set_handler(:ok,     method(:on_item_ok))
+    @item_window.set_handler(:cancel, method(:on_item_cancel))
+  
+
+    @status_window1.actor = @current_summon
+    @slot_window.actor = @current_summon
+    @item_window.actor = @current_summon
+  
+
+    @status_window1.viewport = @viewport
+    @command_window1.viewport = @viewport
+    @command_window1.help_window = @help_window
+    @slot_window.viewport = @viewport
+    @slot_window.help_window = @help_window
+    @slot_window.status_window = @status_window1
+    @item_window.viewport = @viewport
+    @item_window.help_window = @help_window
+    @item_window.status_window = @status_window1
+    @slot_window.item_window = @item_window
+  
+    @command_window1.activate
+  end
+  
+  def actor
+    return @current_summon
+  end
+  
+  def on_custom_equip_cancel
+    @help_window.close
+    @status_window1.close
+    @command_window1.close
+    @slot_window.close
+    @item_window.close
+    @help_window.dispose
+    @status_window1.dispose
+    @command_window1.dispose
+    @slot_window.dispose
+    @item_window.dispose
+    @help_window = nil
+    @status_window1 = nil
+    @command_window1 = nil
+    @slot_window = nil
+    @item_window = nil
+    @action_window.activate if @summon_window
+    @summon_window.update_status
+  end
+  
+  def command_equip
+    @slot_window.activate
+    @slot_window.select(0)
+  end
+
+  def command_optimize
+    Sound.play_equip
+    actor.optimize_equipments
+  
+    @status_window1.refresh
+    @slot_window.refresh
+    @item_window.refresh
+  
+    @command_window1.activate
+  end
+  
+  def command_clear
+    Sound.play_equip
+    actor.clear_equipments
+    @status_window1.refresh
+    @slot_window.refresh
+    @item_window.refresh
+    @command_window1.activate
+  end
+
+  def on_slot_ok
+    @item_window.activate
+    @item_window.select(0)
+    
+    @status_window1.refresh
+    @slot_window.refresh
+    @item_window.refresh
+  end
+
+  def on_slot_cancel
+    @slot_window.unselect
+    @command_window1.activate
+  end
+
+  def on_item_ok
+    Sound.play_equip
+    actor.change_equip(@slot_window.index, @item_window.item)
+    @slot_window.activate
+    @slot_window.refresh
+    @item_window.unselect
+    @item_window.refresh
+  end
+
+  def on_item_cancel
+    @slot_window.activate
+    @item_window.unselect
+  end
+
+  def on_items
+
+    menu_x = 272
+    menu_y = 0
+    menu_width = 272
+    menu_height = 300
+
+    @help_window = Window_Help.new
+    @help_window.viewport = @viewport
+    @help_window.x = menu_x
+    @help_window.y = menu_y
+    @help_window.width = menu_width
+
+    @category_window = Window_ItemCategory2.new
+    @category_window.viewport = @viewport
+    @category_window.help_window = @help_window
+    @category_window.x = menu_x
+    @category_window.y = menu_y + @help_window.height
+    @category_window.width = menu_width
+    @category_window.height = 48
+    @category_window.set_handler(:ok,     method(:on_category_ok2))
+    @category_window.set_handler(:cancel, method(:on_custom_item_cancel))
+
+    wy = @category_window.y + @category_window.height
+    item_window_height = menu_height - @help_window.height - @category_window.height
+    @item_window = Window_ItemList.new(menu_x, wy, menu_width, item_window_height)
+    @item_window.viewport = @viewport
+    @item_window.help_window = @help_window
+    @item_window.set_handler(:ok,     method(:on_item_ok2))
+    @item_window.set_handler(:cancel, method(:on_item_cancel2))
+    @category_window.item_window = @item_window
+    
+    @category_window.activate
+  end
+  
+  def on_custom_item_cancel
+    if @help_window
+      @help_window.close
+      @help_window.dispose
+      @help_window = nil
+    end
+    if @category_window
+      @category_window.close
+      @category_window.dispose
+      @category_window = nil
+    end
+    if @item_window
+      @item_window.close
+      @item_window.dispose
+      @item_window = nil
+    end
+    @action_window.activate if @summon_window 
+  end
+
+  def on_category_ok2
+    @item_window.activate
+    @item_window.select_last
+  end
+  
+  def item
+    @item_window.item
+  end
+
+  def on_item_ok2
+    if @current_summon
+      use_item
+    else
+      Sound.play_buzzer
+    end
+  end
+  
+  def use_item
+    if @current_summon.usable?(item) && @current_summon.item_test(@current_summon, item)
+      Sound.play_use_item
+      @current_summon.use_item(item)
+      item.repeats.times { @current_summon.item_apply(@current_summon, item) }
+      SceneManager.goto(Scene_Map) if $game_temp.common_event_reserved?
+      SceneManager.goto(Scene_Gameover) if $game_party.all_dead?
+    else
+      Sound.play_buzzer
+    end
+    @summon_window.refresh
+    @item_window.refresh
+    @item_window.redraw_current_item
+    @item_window.activate
+  end
+
+  def on_item_cancel2
+    @item_window.unselect
+    @category_window.activate
+  end
+
+  def on_action_cancel
+    @action_window.deactivate
+    @summon_window.activate
+  end
+
+  def close_and_activate(window)
+    window.close if window
+    window.dispose if window
+    window = nil if window
+    @summon_window.activate
+  end
+end
