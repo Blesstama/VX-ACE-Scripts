@@ -162,7 +162,6 @@ end
 class Game_Battler < Game_BattlerBase
   def make_damage_value(user, item)
     value = item.damage.eval(user, self, $game_variables)
-    value += dmg if dmg != 0
     value += user.atkf if (user.actor? != self.actor?) # flat atk increase
     value -= self.deff if (user.actor? != self.actor?) # flat def decrease
     value *= item_element_rate(user, item)
