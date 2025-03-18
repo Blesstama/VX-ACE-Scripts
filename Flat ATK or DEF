@@ -181,7 +181,7 @@ class Game_Battler < Game_BattlerBase
     #the heal part over
     value = apply_critical(user, value) if @result.critical == true
     value = apply_variance(value, item.damage.variance)
-    apply_guard(user, value) if guard?
+    value = apply_guard(user, value) if guard?
     @result.make_damage(value.to_i, item)
   end
   #--------------------------------------------------------------------------
