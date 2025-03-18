@@ -119,11 +119,10 @@ class Game_Actor < Game_Battler
 end
 
 class Game_BattlerBase
-  # New method to handle flat values
   def get_flat_value(regex)
     regexp = Regexp.new(regex, Regexp::IGNORECASE)
     array = get_all_notes.scan(regexp).collect {|i| eval_formula(i.first) }
-    return array[0].to_i
+    return array.inject(0, :+).to_i
   end
 
   # Define flat value regex patterns
