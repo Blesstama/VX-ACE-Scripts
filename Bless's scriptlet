@@ -10,7 +10,7 @@ class Scene_Map < Scene_Base
 end
 
 #--------------------------------------------------------------------------
-# * Atk Speed Fix
+# * Atk Speed Fix (all skills have atk speed bonus and not just skill 1)
 #--------------------------------------------------------------------------
 class Game_Action
   def speed
