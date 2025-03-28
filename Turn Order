@@ -1,0 +1,286 @@
+#==============================================================================
+# Turn Order by Blesstama
+#==============================================================================
+# That script allows you to see possible order of actions enemy/player will
+# do during their turn. Keep in mind that it's rough equation done purely
+# by agi and doesn't include randomness in speed calculation + features
+# like item/skills atk speed/atk speed as trait
+#==============================================================================
+# Actor Notes:
+#
+# <actor faceset: (faceset name), (face index)>
+# By default script uses current actor's faceset as image but it can be
+# changed by that note to use any faceset and any index in Graphics/Faces
+#
+# Example: <actor faceset: Bonnie, 6>
+#
+# <actor picture: picture name>
+# inseat of using faceset uses picture in Graphics/Pictures
+#
+# Example: <actor picture: Bonnie 6>
+#
+# Enemy Notes:
+#
+# <enemy color: r, g, b>
+# change color of box that located behind enemy's sprite so you could
+# see it properly (r is red, g is green, b is blue)
+#
+# Example: <enemy color: 125, 125, 125>
+# 
+# <enemy faceset: (faceset name), (face index)>
+# shows faceset instead of enemy sprite, removes box that used for color when
+# you use that note
+#
+# Example: <enemy faceset: Phantoms, 3>
+# 
+# <enemy picture: picture name>
+# inseat of using enemy sprite use picture in Graphics/Pictures
+#
+# Example: <enemy picture: Fazbear>
+#
+# WARNING:
+# if sprite doesn't show up/shows up abrupted, make faceset for it or change 
+# image size/quality, there's a cases where sprites like holo enemies with 
+# them being half empty makes script go brrrr and break
+#==============================================================================
+
+module BATTLEORDER
+  # CUSTOMISE BEGIN
+  DEFAULT_ENEMY_COLOR = Color.new(125, 125, 125)
+  MAX_ENEMIES = 18
+  ACTORS_SIZES = 40.0
+  ENEMIES_SIZES = 40.0
+  # CUSTOMISE ENDS
+  
+  def self.max_enemies
+    MAX_ENEMIES
+  end
+
+  def self.actors_sizes
+    ACTORS_SIZES
+  end
+  
+  def self.enemies_sizes
+    ENEMIES_SIZES
+  end
+  
+  def self.enemy_color(enemy)
+    if enemy.note =~ /<enemy color:\s*(\d+),\s*(\d+),\s*(\d+)>/i
+      Color.new($1.to_i, $2.to_i, $3.to_i)
+    else
+      DEFAULT_ENEMY_COLOR
+    end
+  end
+
+  def self.enemy_image(enemy)
+    if enemy.note =~ /<enemy faceset:\s*([\w\s]+),\s*(\d+)>/i
+      face_name = $1.strip
+      return Cache.face(face_name).clone # Clone to ensure separate instance
+    elsif enemy.note =~ /<enemy picture:\s*([^>]+)>/i
+      image_name = $1.strip
+      full_path = "Graphics/Pictures/#{image_name}.png"
+      return Cache.picture(image_name) if File.exist?(full_path)
+    else
+      return Cache.battler(enemy.battler_name, enemy.battler_hue)
+    end
+  end
+
+  def self.actor_image(actor)
+    if actor.note =~ /<actor faceset:\s*([\w\s]+),\s*(\d+)>/i
+      face_name = $1.strip
+      return Cache.face(face_name).clone if $2.to_i < Cache.face(face_name).height / 96
+    elsif actor.note =~ /<actor picture:\s*([\w\s]+)>/i
+      image_name = $1.strip
+      full_path = "Graphics/Pictures/#{image_name}.png"
+      return Cache.picture(image_name) if File.exist?(full_path)
+    else
+      Cache.face(actor.face_name).clone # Clone to ensure separate instance
+    end
+  end
+end
+
+class Sprite_BattleOrder < Sprite
+  def initialize(viewport)
+    super(viewport)
+    @faces = []
+    @battlers = []
+    @max_faces = BATTLEORDER.max_enemies
+    @face_size = BATTLEORDER.actors_sizes
+    @battler_size = BATTLEORDER.enemies_sizes
+  end
+
+  def update_battle_order
+    dispose_sprites
+    battle_participants = BattleManager.battle_order.first(@max_faces)
+    battle_participants.each_with_index { |battler, index| create_battler_sprite(battler, index) }
+  end
+
+  def dispose
+    dispose_sprites
+    super
+  end
+
+  private
+
+  def dispose_sprites
+    @faces.each(&:dispose)
+    @battlers.each(&:dispose)
+    @faces.clear
+    @battlers.clear
+  end
+
+  def create_battler_sprite(battler, index)
+    box_x = 10 + (index * (@face_size + 5))
+    box_y = 10
+
+    if battler.is_a?(Game_Actor)
+      create_actor_sprite(battler, box_x, box_y)
+    elsif battler.is_a?(Game_Enemy)
+      create_enemy_sprite(battler, box_x, box_y)
+    end
+  end
+
+  def create_actor_sprite(actor, box_x, box_y)
+    if actor.note =~ /<actor picture:\s*([\w\s]+)>/i
+      create_actor_picture_sprite(actor, box_x, box_y)
+    else
+      face_sprite = Sprite.new(@viewport)
+      face_sprite.bitmap = BATTLEORDER.actor_image(actor)
+      set_actor_face_rect(face_sprite, actor)
+      position_sprite(face_sprite, box_x, box_y, 1)
+      @faces << face_sprite
+    end
+  end
+
+  def create_actor_picture_sprite(actor, box_x, box_y)
+    actor_sprite = Sprite.new(@viewport)
+    actor_sprite.bitmap = BATTLEORDER.actor_image(actor)
+  
+    original_width = actor_sprite.bitmap.width
+    original_height = actor_sprite.bitmap.height
+    
+    zoom_x = @face_size / original_width.to_f
+    zoom_y = @face_size / original_height.to_f
+    
+    zoom_factor = [zoom_x, zoom_y].min
+    actor_sprite.zoom_x = actor_sprite.zoom_y = zoom_factor
+    
+    actor_sprite.x = box_x
+    actor_sprite.y = box_y
+    actor_sprite.visible = true
+    @battlers << actor_sprite
+  end
+  
+  def set_actor_face_rect(sprite, actor)
+    face_index = actor.face_index
+    face_columns = sprite.bitmap.width / 96
+    face_x = (face_index % face_columns) * 96
+    face_y = (face_index / face_columns) * 96
+    sprite.src_rect.set(face_x, face_y, 96, 96)
+    sprite.zoom_x = sprite.zoom_y = @face_size / 96.0
+  end
+
+  def create_enemy_sprite(enemy, box_x, box_y)
+    color = BATTLEORDER.enemy_color(enemy)
+    create_enemy_background(box_x, box_y, color)
+    if enemy.note =~ /<enemy faceset:\s*([\w\s']+),\s*(\d+)>/i
+      create_enemy_faceset_sprite(box_x, box_y, $1.strip, $2.to_i)
+    else
+      create_enemy_battler_sprite(enemy, box_x, box_y)
+    end
+  end
+
+  def create_enemy_background(box_x, box_y, color)
+    black_box = Sprite.new(@viewport)
+    black_box.bitmap = Bitmap.new(@battler_size, @battler_size)
+    black_box.bitmap.fill_rect(0, 0, @battler_size, @battler_size, color)
+    position_sprite(black_box, box_x, box_y, 0)
+    @battlers << black_box
+  end
+
+  def create_enemy_faceset_sprite(box_x, box_y, face_name, face_index)
+    enemy_face_sprite = Sprite.new(@viewport)
+    enemy_face_sprite.bitmap = Cache.face(face_name).clone # Clone to ensure separate instance
+  
+    face_width = 96
+    face_height = 96
+    
+    enemy_face_sprite.src_rect.set((face_index % 4) * face_width, (face_index / 4) * face_height, face_width, face_height)
+  
+    zoom_x = @face_size / face_width.to_f
+    zoom_y = @face_size / face_height.to_f
+    zoom_factor = [zoom_x, zoom_y].min
+    enemy_face_sprite.zoom_x = enemy_face_sprite.zoom_y = zoom_factor
+  
+    position_sprite(enemy_face_sprite, box_x, box_y, 1)
+    @faces << enemy_face_sprite
+  end
+
+  def create_enemy_battler_sprite(enemy, box_x, box_y)
+    battler_sprite = Sprite.new(@viewport)
+    battler_sprite.bitmap = BATTLEORDER.enemy_image(enemy)
+    set_battler_sprite_zoom_and_position(battler_sprite, box_x, box_y)
+    battler_sprite.visible = true
+    @battlers << battler_sprite
+  end
+
+  def set_battler_sprite_zoom_and_position(sprite, box_x, box_y)
+    original_width = sprite.bitmap.width
+    original_height = sprite.bitmap.height
+    
+    zoom_x = @battler_size / original_width.to_f
+    zoom_y = @battler_size / original_height.to_f
+    
+    zoom_factor = [zoom_x, zoom_y].min
+    sprite.zoom_x = sprite.zoom_y = zoom_factor
+    
+    sprite.x = box_x + (@battler_size - (original_width * zoom_factor)) / 2
+    sprite.y = box_y + (@battler_size - (original_height * zoom_factor)) / 2
+    
+    sprite.src_rect.set(0, 0, original_width, original_height)
+
+    sprite.visible = true
+  end
+
+  def position_sprite(sprite, x, y, z)
+    sprite.x = x
+    sprite.y = y
+    sprite.z = z
+    sprite.visible = true
+  end
+end
+
+class Scene_Battle < Scene_Base
+  alias_method :start_original, :start
+  def start
+    start_original
+    @battle_order_sprites = Sprite_BattleOrder.new(@viewport)
+    update_battle_order_display
+  end
+
+  def update_battle_order_display
+    @battle_order_sprites.update_battle_order
+  end
+
+  alias :baseupdate :update
+  def update
+    baseupdate
+    if BattleManager.in_turn?
+      @battle_order_sprites.dispose
+    else
+      update_battle_order_display
+    end
+  end
+
+  alias_method :terminate_original, :terminate
+  def terminate
+    @battle_order_sprites.dispose if @battle_order_sprites
+    terminate_original
+  end
+end
+
+module BattleManager
+  def self.battle_order
+    ($game_party.alive_members + $game_troop.alive_members).sort_by(&:agi).reverse
+  end
+end
