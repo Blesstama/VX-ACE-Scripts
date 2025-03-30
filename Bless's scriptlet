@@ -107,3 +107,26 @@ end
   def swaphue(number)
     @battler_hue = number
   end
+#--------------------------------------------------------------------------
+# * Allows function Change Battleback work in battle
+#--------------------------------------------------------------------------
+class Game_Interpreter
+  alias_method :command_283_orig_kal, :command_283
+  def command_283
+	 command_283_orig_kal
+	 if SceneManager.scene.is_a?(Scene_Battle)
+	   scene = SceneManager.scene
+	   scene.spriteset.change_image(@params[0], @params[1])
+	 end
+  end
+end
+class Scene_Battle
+  attr_reader :spriteset
+end
+class Spriteset_Battle
+  def change_image(name, name2)
+    @back1_sprite.bitmap = Bitmap.new("Graphics/Battlebacks1/#{name}.png")
+    @back2_sprite.bitmap = Bitmap.new("Graphics/Battlebacks1/#{name2}.png")
+    update
+  end
+end
