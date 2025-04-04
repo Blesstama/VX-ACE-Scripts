@@ -1,0 +1,119 @@
+# --------------------------------------------------------
+# ▼ "Unable to find" Skip [VX Ace] - v1.2
+#    by Krosk - Modified by Blesstama
+# --------------------------------------------------------
+#   If a graphic or audio resource is missing,
+# the game will prompt the player with an error message
+# and shut down, making it impossible to go further. 
+# This situation should NOT happen when, as a maker, 
+# you release a game, but mistakes happen sometimes.
+#
+#   This script allows the player to continue playing
+# even if a graphic or audio resource is missing,
+# regardless of if the project is encrypted or not.
+# In this case game will create special text file
+# "missingfilereport.txt" that will have all missing
+# files names inside.
+#
+#   It will not prevent the crash if a map or a data file 
+# is missing.
+# 
+#   A missing image is replaced by an empty transparent 
+# sprite, although you can replace it by yourself with 
+# an image of your choice.
+#   Set UTFSSUB = "Graphics/Picture/image_example"
+# with the path of the picture.
+#
+#   A missing sound is just skipped altogether.
+# 
+#   You can custom the warning message with UTFSTEXT
+# to tell the player what to do (e.g. send you a mail).
+#   Use \n to jump a line
+#   Use %s to indicate the name of the missing resource
+# --------------------------------------------------------
+
+UTFSTEXT = "F in chat, file %s not real. Open text file in folder and tell dev what is
+in error_log text else not gonna be fixed"
+UTFSSUB  = ""
+# --------------------------------------------------------
+# ▼ No need to edit below this line
+# --------------------------------------------------------
+
+class << Bitmap
+  alias_method :utfs_new, :new unless method_defined?(:utfs_new)
+  def new(*args)
+    utfs_new(*args)
+  rescue
+    if args.size == 1
+      text = sprintf(UTFSTEXT, args[0])
+      add_to_missing_report(text)
+    end
+    begin
+      utfs_new(UTFSSUB)
+    rescue
+      utfs_new(32, 32)
+    end
+  end
+
+  def add_to_missing_report(text)
+    file_path = "missingfilereport.txt"
+    File.open(file_path, "a+") do |file| # Open in append/write mode
+      file.rewind 
+      existing_lines = file.readlines.map(&:strip)
+      
+      unless existing_lines.include?(text)
+        file.puts(text)
+      end
+    end
+  end
+end
+
+module Audio
+  class << self
+    alias_method :utfs_se_play, :se_play
+    alias_method :utfs_me_play, :me_play
+    alias_method :utfs_bgm_play, :bgm_play
+    alias_method :utfs_bgs_play, :bgs_play
+  end
+
+  def self.se_play(filename, volume = 100, pitch = 100)
+    self.utfs_se_play(filename, volume, pitch)
+  rescue
+    log_missing_resource(filename)
+  end
+  
+  def self.me_play(filename, volume = 100, pitch = 100)
+    self.utfs_me_play(filename, volume, pitch)
+  rescue
+    log_missing_resource(filename)
+  end
+  
+  def self.bgm_play(filename, volume = 100, pitch = 100, pos = 0)
+    self.utfs_bgm_play(filename, volume, pitch, pos)
+  rescue
+    log_missing_resource(filename)
+  end
+  
+  def self.bgs_play(filename, volume = 100, pitch = 100, pos = 0)
+    self.utfs_bgs_play(filename, volume, pitch, pos)
+  rescue
+    log_missing_resource(filename)
+  end
+
+  def self.log_missing_resource(filename)
+    text = sprintf(UTFSTEXT, filename)
+    file_path = "missingfilereport.txt"
+    File.open(file_path, "a+") do |file| # Open in append/write mode
+      file.rewind 
+      existing_lines = file.readlines.map(&:strip)
+      
+      unless existing_lines.include?(text)
+        file.puts(text)
+      end
+    end
+  end
+end
+
+#==============================================================================
+# End of file
+#==============================================================================
