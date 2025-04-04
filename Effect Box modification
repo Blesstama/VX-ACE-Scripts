@@ -1,0 +1,298 @@
+##----------------------------------------------------------------------------##
+## Effects Box Script v1.0
+## Created by Neon Black
+## Modification by Bless: Works without module + on items too
+##
+## For both commercial and non-commercial use as long as credit is given to
+## Neon Black and any additional authors.  Licensed under Creative Commons
+## CC BY 3.0 - http://creativecommons.org/licenses/by/3.0/.
+##----------------------------------------------------------------------------##
+                                                                              ##
+##----------------------------------------------------------------------------##
+##    Revision Info:
+## v1.0 - 3.3.2013
+##  Wrote and debugged main script
+##----------------------------------------------------------------------------##
+                                                                              ##
+$imported ||= {}                                                              ##
+$imported["EFFECTS_BOX"] = 1.0                                                ##
+                                                                              ##
+##----------------------------------------------------------------------------##
+##    Instructions:
+## Place this script in the script editor below "Materials" and above "Main".
+## This script requires Neon Black's Features and Effects name module.  You can
+## obtain it from http://cphouseset.wordpress.com/modules/.  If you do not
+## import it, you will get errors.
+##
+## This script is plug and play.  It allows a pop-up boxes to display on equips,
+## items, and skills.  You can choose to have these pop-ups be constant, toggle
+## with a button press, or only appear while a key is held down.  These display
+## 3 bits of information.  First an added note, second all the stats equipping
+## the item will provide, and finally all the effects or features of the item.
+## A note can be added using <effect note> and </effect note> and placing your
+## note in between those tags, like so:
+##
+##    <effect note>
+##    This will display line 1
+##    This will display line 2
+##    </effect note>
+##
+##----------------------------------------------------------------------------##
+                                                                              ##
+module CP             # Do not touch                                          ##
+module EFFECTS_WINDOW #  these lines.                                         ##
+##----------------------------------------------------------------------------##
+##    Config:
+## The config options are below.  You can set these depending on the flavour of
+## your game.  Each option is explained in a bit more detail above it.
+##
+##------
+# This is the padding around the edges of the box.  Increasing this number will
+# increase the size of the box without increasing the size of it's contents.
+EDGES = 8
+
+# This is the font size of the pop up's text.  Adjusting this affects the entire
+# box's size.
+FONT_SIZE = 16
+
+# Choose to use font shadow or outlines.
+SHADOW = true
+OUTLINE = true
+
+# If this value is set to false, stats will not be shown on equips.
+SHOW_STATS = false
+
+# The key to press to toggle or show the box.
+BOX_KEY = :Z
+
+# The show type for the pop-up box.  Any value other than these three will
+# prevent the box from being show.
+#  0 = Hold button to display the box.
+#  1 = Press button to toggle the box.
+#  2 = The box is constantly show.
+SHOW_TYPE = 0
+
+# If type 2 was selected above, this is the default state of the box.  Set it to
+# true to show the box or false to hide the box until the key is pressed.
+@show = false
+##----------------------------------------------------------------------------##
+                                                                              ##
+                                                                              ##
+##----------------------------------------------------------------------------##
+## The following lines are the actual core code of the script.  While you are
+## certainly invited to look, modifying it may result in undesirable results.
+## Modify at your own risk!
+###----------------------------------------------------------------------------
+
+
+  def self.toggle_effects
+    @show = !@show if Input.trigger?(BOX_KEY)
+    return @show
+  end
+
+end
+end
+
+class Window_Selectable < Window_Base
+  def item
+    return nil
+  end
+
+  alias :cp_itembox_update :update
+  def update(*args)
+    cp_itembox_update(*args)
+    show_fet_window
+  end
+
+  def show_fet_window
+    key = key_show_features_box
+    show_feature_box if key && active && open?
+    remove_feature_box unless key && active && open?
+  end
+
+  def key_show_features_box
+    case CP::EFFECTS_WINDOW::SHOW_TYPE
+    when 0
+      return Input.press?(CP::EFFECTS_WINDOW::BOX_KEY)
+    when 1
+      return CP::EFFECTS_WINDOW.toggle_effects
+    when 2
+      return true
+    else
+      return false
+    end
+  end
+
+  def show_feature_box  ## Creates the box if shift is held.
+    if item != @last_box_item
+      if feature_box_item?
+        @feature_box.dispose unless @feature_box.nil?
+        rect = item_rect(@index)
+        x = rect.x + self.x + padding + 24 - ox
+        y = rect.y + line_height + self.y + padding - oy - 2
+        @feature_box = Window_FeaturesShow.new(item, x, y, self)
+        @last_box_item = item
+      else
+        remove_feature_box
+      end
+    end
+  end
+
+  def feature_box_item?
+    item.is_a?(RPG::EquipItem) || item.is_a?(RPG::UsableItem) || item.is_a?(RPG::Skill)
+  end
+
+  def remove_feature_box  ## Dispose the box.
+    @feature_box.dispose unless @feature_box.nil?
+    @feature_box = nil
+    @last_box_item = nil
+  end
+end
+
+class Window_FeaturesShow < Window_Base
+  def initialize(item, x, y, parent)
+    @parent = parent
+    @bx = x; @by = y
+    @item = item
+    super(0, 0, 500, 500)
+    self.z = @parent.z + 500
+    self.windowskin = Cache.system("Window2") rescue Cache.system("Window")
+    self.back_opacity = 255
+    self.tone = Tone.new
+    make_width
+    make_height
+    make_position
+    draw_all_items
+  end
+
+  def make_width
+    contents.font.size = line_height
+    contents.font.outline = CP::EFFECTS_WINDOW::OUTLINE
+    contents.font.shadow = CP::EFFECTS_WINDOW::SHADOW
+    i = 120
+    unless notes.empty?
+      i = [i, notes.collect{|n| contents.text_size(n).width}.max + 2].max
+    end
+    unless stats.empty?
+      i = [i, stats.collect{|s| contents.text_size(s).width}.max + 2].max
+    end
+    self.width = i + standard_padding * 2
+  end
+
+  def make_height
+    sw = self.width - standard_padding * 2
+    i = standard_padding * 2
+    i += notes.size * line_height
+    i += seps * line_height / 2
+    unless stats.empty?
+      w = stats.collect{|s| contents.text_size(s).width}.max + 2
+      n = [sw / w, 1].max
+      i += (stats.size + n - 1) / n * line_height
+    end
+    self.height = i
+    self.visible = false if i == standard_padding * 2
+    create_contents
+    contents.font.size = line_height
+    contents.font.outline = true
+    contents.font.shadow = false
+    change_color(normal_color)
+  end
+
+  def make_position
+    self.x = @bx + self.width > Graphics.width ? Graphics.width - self.width :
+             @bx
+    self.y = @by + self.height <= Graphics.height ? @by :
+             @by - self.height - @parent.line_height + 4 > 0 ? @by -
+             self.height - @parent.line_height + 4 : Graphics.height -
+             self.height
+  end
+
+  def standard_padding
+    CP::EFFECTS_WINDOW::EDGES
+  end
+
+  def line_height
+    CP::EFFECTS_WINDOW::FONT_SIZE
+  end
+
+  def seps
+    i = 0
+    i += 1 unless notes.empty?
+    i += 1 unless stats.empty?
+    return [i, 0].max
+  end
+
+  def stats
+    return [] unless CP::EFFECTS_WINDOW::SHOW_STATS && @item.is_a?(RPG::EquipItem)
+    r = []
+    8.times do |i|
+      next if @item.params[i] == 0
+      r.push("#{Vocab.param(i)}   #{@item.params[i]}")
+    end
+    return r
+  end
+
+  def notes
+    @item.effect_desc
+  end
+
+  def effects
+    if @item.is_a?(RPG::EquipItem)
+      @item.features
+    end
+  end
+
+  def draw_all_items
+    contents.clear
+    y = 0
+    notes.each do |l|
+      draw_text(1, y, contents.width, line_height, l)
+      y += line_height
+    end
+    y += line_height / 2 unless y == 0
+    unless stats.empty?
+      w = stats.collect{|s| contents.text_size(s).width}.max + 2
+      xt = contents.width / w
+      xw = contents.width / xt
+      xn = 0
+      y -= line_height
+      stats.each_with_index do |s, index|
+        y += line_height if index % xt == 0
+        case s
+        when /(.*)   (-?)(\d+)/i
+          draw_text(xw * (index % xt) + 1, y, xw, line_height, "#{$1.to_s}")
+          draw_text(xw * (index % xt) + 1, y, xw, line_height,
+                    "#{$2.to_s}#{$3.to_s}  ", 2)
+        end
+      end
+      y += line_height
+    end
+  end
+end
+
+class RPG::BaseItem
+  def effect_desc
+    make_effect_desc if @effect_desc.nil?
+    return @effect_desc
+  end
+
+  def make_effect_desc
+    @effect_desc = []
+    noted = false
+    self.note.split(/[\r\n]+/i).each do |line|
+      case line
+      when /<effect note>/i
+        noted = true
+      when /<\/effect note>/i
+        noted = false
+        break
+      else
+        @effect_desc.push("#{line}") if noted
+      end
+    end
+  end
+end
+
+###--------------------------------------------------------------------------###
+#  End of script.                                                              #
+###--------------------------------------------------------------------------###
