@@ -1,0 +1,410 @@
+#==============================================================================
+# Display States' icons
+# V 1.1
+# Show duration for every states + overlay for text by: Blesstama
+# By Lecode
+# Requested from BCj
+#----------------------
+# Free to use in commercial games as long as i'm credited
+#==============================================================================
+
+module Lecode_StatesIcons
+  
+  #- :top or :bottom
+  Position = :bottom
+  Offset_X = 0
+  Offset_Y = -8
+  
+  #- Space between icons
+  Space = 2
+  
+  #- false = show only when the battler is selected
+  Always_Visible = true
+  
+  #- Icons z
+  Z = 99
+  Opacity = 255
+  
+  #- Show turn count ?
+  Turn_Count = true
+  Blacklist = [0]
+  #haha it was me, grig! i added the blacklist feature!
+  
+  TC_Size = 16
+  TC_Color = Color.new(255,255,255)
+  
+  #- Change text color when current turn count = TC_Warning_Turn
+  TC_Warning_Turn = 1
+  TC_Warning_Color = Color.new(245,100,100)
+  
+  #- Enable blink effect ?
+  TC_Warning_Blink = true
+  
+  TC_Blink_Color = Color.new(255,255,255)
+  TC_Blink_Duration = 30
+  #- Wait x frames before looping
+  TC_Blink_Wait = 20
+  
+end
+#==============================================================================
+# END OF CONFIGURATION
+#==============================================================================
+$imported ||= {}
+
+class Game_BattlerBase
+  attr_reader   :hidden
+  def show_buffs
+  end
+  
+  def get_buffs
+    arr = []
+    index = 0
+    for b in @buffs do
+      arr.push(index) if b != 0
+      index += 1
+    end
+    return arr
+  end
+  
+  def get_buff_icon(param)
+    level = @buffs[param]
+    return buff_icon_index(level, param)
+  end
+end
+
+
+class LeStates_Icons
+  
+  def amalg
+    @battler.states + @battler.get_buffs
+  end
+  
+  def initialize(battler,sprite)
+    @battler = battler
+    @sprite = sprite
+    @last_record = []
+    @icons = []
+    @turns = []
+    @blinking_ics = []
+    @blink_frame = 0
+  end
+  
+  def update
+    return if @battler.nil?
+    update_icons
+    refresh_icons
+    update_positions
+    update_visibility
+    update_blinks
+  end
+  
+  def update_icons
+    @icons.each { |i| i.update }
+    @turns.each { |i| i.update }
+  end
+  
+  def refresh_icons
+    if @battler.dead? || @battler.hidden == true
+      dispose_icons 
+      return
+    end
+    return unless can_refresh_icons
+    @last_record = amalg
+    dispose_icons
+    amalg.each { |state|
+    if state.is_a?(RPG::State)
+      next if state.icon_index == 0
+    end
+    if !state.is_a?(RPG::State)
+      icon = create_buff_icon(state)
+      create_buff_turn_count(state)
+      #-
+      turn_count = buff_turns(state)
+    end
+    next if !state.is_a?(RPG::State)
+    next if Lecode_StatesIcons::Blacklist.include?(state.id)
+      icon = create_icon(state)
+      create_turn_count(state)
+      #-
+      turn_count = state_turns(state)
+      if Lecode_StatesIcons::TC_Warning_Blink && state.auto_removal_timing == 2
+        start_blink(icon) if turn_count == Lecode_StatesIcons::TC_Warning_Turn
+      end
+    }
+    @blink_frame = max_blink_frames
+  end
+  
+  def can_refresh_icons
+    current_record != @last_record
+  end
+  
+  def create_icon(state)
+    icon = Sprite.new
+    icon.bitmap = Bitmap.new(24,24)
+    icon_index = state.icon_index
+    bitmap = Cache.system("Iconset")
+    rect = Rect.new(icon_index % 16 * 24, icon_index / 16 * 24, 24, 24)
+    icon.bitmap.blt(0, 0, bitmap, rect)
+    icon.z = z
+    icon.opacity = opacity
+    @icons.push(icon)
+    return icon
+  end
+
+  def create_buff_icon(buff)
+    icon = Sprite.new
+    icon.bitmap = Bitmap.new(24,24)
+    icon_index = @battler.get_buff_icon(buff)
+    bitmap = Cache.system("Iconset")
+    rect = Rect.new(icon_index % 16 * 24, icon_index / 16 * 24, 24, 24)
+    icon.bitmap.blt(0, 0, bitmap, rect)
+    icon.z = z
+    icon.opacity = opacity
+    @icons.push(icon)
+    return icon
+  end
+  
+  def create_buff_turn_count(buff)
+    turn_count = buff_turns(buff).to_i
+    tc_sprite = Sprite.new
+    dum_bitmap = Bitmap.new(1,1)
+    dum_bitmap.font.size = font_size
+    rect = dum_bitmap.text_size(turn_count)
+    tc_sprite.bitmap = Bitmap.new(rect.width+4,rect.height+4)
+    tc_sprite.bitmap.font.size = font_size
+    if turn_count == warning_turn
+      tc_sprite.bitmap.font.color = tc_warning_color
+    else
+      tc_sprite.bitmap.font.color = tc_color
+    end
+    tc_sprite.bitmap.font.color = Color.new(0, 0, 0, 255)
+    [-1, 0, 1].product([-1, 0, 1]).each do |x, y|
+    tc_sprite.bitmap.draw_text(2 + x, 0 + y, rect.width + 2, rect.height + 2, turn_count.to_s, 4)
+    end
+    tc_sprite.bitmap.font.color = tc_color
+    tc_sprite.bitmap.draw_text(2, 0, rect.width + 2, rect.height + 2, turn_count.to_s)
+    tc_sprite.z = z+1
+    @turns.push(tc_sprite)
+    #-
+    @last_record.push(turn_count)
+  end
+  
+  def buff_turns(buff)
+    @battler.buff_turns(buff)
+  end
+  
+  def create_turn_count(state)
+    turn_count = state_turns(state)
+    tc_sprite = Sprite.new
+    dum_bitmap = Bitmap.new(1,1)
+    dum_bitmap.font.size = font_size
+    rect = dum_bitmap.text_size(turn_count)
+    tc_sprite.bitmap = Bitmap.new(rect.width+4,rect.height+4)
+    tc_sprite.bitmap.font.size = font_size
+    if turn_count == warning_turn
+      tc_sprite.bitmap.font.color = tc_warning_color
+    else
+      tc_sprite.bitmap.font.color = tc_color
+    end
+    tc_sprite.bitmap.font.color = Color.new(0, 0, 0, 255)
+    if state.auto_removal_timing == 0
+      turn_count = "∞"
+    end
+    [-1, 0, 1].product([-1, 0, 1]).each do |x, y|
+    tc_sprite.bitmap.draw_text(2 + x, 2 + y, rect.width + 2, rect.height + 2, turn_count.to_s, 4)
+    end
+    tc_sprite.bitmap.font.color = tc_color
+    tc_sprite.bitmap.draw_text(2, 2, rect.width + 2, rect.height + 2, turn_count.to_s)
+    tc_sprite.z = z + 1
+    @turns.push(tc_sprite)
+    @last_record.push(turn_count)
+  end
+
+  
+  def opacity
+    Lecode_StatesIcons::Opacity
+  end
+  
+  def z
+    Lecode_StatesIcons::Z
+  end
+  
+  def font_size
+    Lecode_StatesIcons::TC_Size
+  end
+  
+  def warning_turn
+    Lecode_StatesIcons::TC_Warning_Turn
+  end
+  
+  def tc_warning_color
+    Lecode_StatesIcons::TC_Warning_Color
+  end
+  
+  def tc_color
+    Lecode_StatesIcons::TC_Color
+  end
+  
+  def current_record
+    arr = amalg
+    amalg.each { |s|
+      arr.push(state_turns(s))
+    }
+    return arr
+  end
+  
+  def start_blink(sprite)
+    @blinking_ics.push(sprite)
+  end
+  
+  def update_positions
+    total_width = @icons.size*(24+space)
+    x = @battler.screen_x - total_width/2
+    y = @battler.screen_y - 24
+    y -= @sprite.height if position == :top
+    x += Lecode_StatesIcons::Offset_X
+    y += Lecode_StatesIcons::Offset_Y
+    #-
+    update_icons_positions(x,y)
+    update_tcs_positions(x,y)
+  end
+  
+  def update_icons_positions(x,y)
+    @icons.each_with_index { |ic,i| 
+      ic.x = x+i*(24+space)
+      ic.y = y
+    }
+  end
+  
+  def update_tcs_positions(x,y)
+    @turns.each_with_index { |ic,i|
+      ic.x = x+i*(24+space)
+      ic.y = y
+    }
+  end
+  
+  def update_visibility
+    @icons.each { |i| i.visible = visible? }
+    @turns.each { |i| i.visible = visible? }
+  end
+  
+  def visible?
+    return true if Lecode_StatesIcons::Always_Visible
+    return false unless SceneManager.scene_is?(Scene_Battle)
+    return false unless SceneManager.scene.enemy_window.visible
+    return true if SceneManager.scene.enemy_window.enemy == @battler
+    return true if $imported["YEA-BattleEngine"] && SceneManager.scene.enemy_window.select_all?
+    return false
+  end
+  
+  def update_blinks
+    increase_blink_frame
+    return unless can_update_blinks?
+    @blink_frame = 0
+    @blinking_ics.each { |ic|
+      process_blink(ic)
+    }
+  end
+  
+  def can_update_blinks?
+    @blink_frame == max_blink_frames
+  end
+  
+  def increase_blink_frame
+    @blink_frame = [@blink_frame+1,max_blink_frames].min
+  end
+  
+  def process_blink(icon)
+    icon.flash(blink_color,blink_duration)
+  end
+  
+  def blink_color
+    Lecode_StatesIcons::TC_Blink_Color
+  end
+  
+  def blink_duration
+    Lecode_StatesIcons::TC_Blink_Duration
+  end
+  
+  def blink_wait
+    Lecode_StatesIcons::TC_Blink_Wait
+  end
+  
+  def max_blink_frames
+    blink_duration+blink_wait
+  end
+  
+  def space
+    Lecode_StatesIcons::Space
+  end
+  
+  def position
+    Lecode_StatesIcons::Position
+  end
+  
+  def state_turns(state)
+    @battler.lecodesi_state_turns(state)
+  end
+  
+  def dispose_icons
+    @icons.each { |i| 
+      i.bitmap.dispose
+      i.dispose 
+    }
+    @icons.clear
+    @turns.each { |i| 
+      i.bitmap.dispose
+      i.dispose 
+    }
+    @turns.clear
+    @blinking_ics.clear
+  end
+  
+end
+
+class Sprite_Battler < Sprite_Base
+  
+  alias lecode_siinitialize initialize
+  def initialize(viewport, battler = nil)
+    lecode_siinitialize(viewport, battler)
+    create_states_icons
+  end
+  
+  def create_states_icons
+    @states_icons = LeStates_Icons.new(@battler,self)
+  end
+  
+  alias lecode_sidispose dispose
+  def dispose
+    lecode_sidispose
+    dispose_states_icons
+  end
+  
+  def dispose_states_icons
+    @states_icons.dispose_icons
+  end
+  
+  alias lecode_siupdate update
+  def update
+    lecode_siupdate
+    update_states_icons
+  end
+  
+  def update_states_icons
+    @states_icons.update
+  end
+  
+end
+
+class Game_Battler
+  
+  def lecodesi_state_turns(state)
+    return buff_turns(state) unless state.is_a?(RPG::State)
+    return @state_turns[state.id]
+  end
+  
+end
+
+class Scene_Battle
+  attr_reader :enemy_window
+end
