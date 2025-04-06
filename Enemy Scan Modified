@@ -1,9 +1,10 @@
 ###--------------------------------------------------------------------------###
 #  CP Enemy Scan script                                                        #
-#  Version 1.2b                                                                #
-#  Bio2 with drops and Bio3 for own text 2:Blesstama                           #
+#  Version 1.2a                                                                #
+#                                                                              #
 #      Credits:                                                                #
 #  Original code by: Neon Black                                                #
+#  Modified by:                                                                #
 #                                                                              #
 #  This work is licensed under the Creative Commons Attribution-NonCommercial  #
 #  3.0 Unported License. To view a copy of this license, visit                 #
@@ -89,10 +90,6 @@
 #  hide hp  -and/or-  hide mp  -and/or-  hide tp                               #
 #    Hides the designated stat in the info box.  You can use one or each tag   #
 #    to hide several options at once.                                          #
-#    <bio3>                                                                    #
-#    Enemy bio goes here but again. Use it if you want to have bio1 flawor     #
-#    and bio3 something else, like enemy lore or guide                         #
-#    </bio3> #
 ###-----                                                                -----###
 #      Skill/Item Tags:                                                        #
 #  scan[libra]                                                                 #
@@ -126,7 +123,7 @@ STATE_NORM_BOT = 1.0 # Default = 1.0                                           #
 #                                                                              #
 # Sets the button that can be used to open the scan menu.  This can be set to  #
 # nil to disable normal opening of the scan menu.                              #
-BUTTON_SCAN = :nil # Default = :A                                                #
+BUTTON_SCAN = :A # Default = :A                                                #
 #                                                                              #
 # Choose to use the percentage based scan screen (all elements and states      #
 # shown) or the icon based scan screen.                                        #
@@ -142,9 +139,9 @@ HIDDEN_STAT = "--%" # Default = "--%"                                          #
 #                                                                              #
 # Determine if an info window is used to tell the player what button to press, #
 # the text of this window, and the X and Y position of the window.             #
-INFO_WINDOW = false # Default = true                                            #
-INFO_X = 264   # Default = 304                                                   #
-INFO_Y = 0 # Default = 248                                                   #
+INFO_WINDOW = true # Default = true                                            #
+INFO_X = 264 # Default = 304                                                   #
+INFO_Y = 248 # Default = 248                                                   #
 INFO_TEXT = "Press shift for enemy info"                                       #
 #                                                                              #
 # This is the text that displays in the discovery type scan screen that above  #
@@ -160,16 +157,15 @@ HIDDEN_TEXT = "? ? ?" # Default = "? ? ?"                                      #
 # The ID relates to the element's ID in the "Terms" page of the database.      #
 ELEMENTS ={                                                                    #
 # ID => Icon,                                                                  #
-  1  => 115,
-  2  => 117,
-  3  => 96,
-  4  => 97,
-  5  => 98,
-  6  => 99,
-  7  => 100,
-  8  => 101,
-  9  => 102,
-  10  => 103,
+  1  => 96,
+  2  => 112,
+  3  => 97,
+  4  => 98,
+  5  => 99,
+  6  => 100,
+  7  => 101,
+  8  => 102,
+  9  => 103,
 }                                                                              #
 #                                                                              #
 # This hash contains all the states that can be displayed in the scan screen   #
@@ -177,16 +173,7 @@ ELEMENTS ={                                                                    #
 # database, set the icon number to nil.                                        #
 STATES ={                                                                      #
 # ID => Icon,                                                                  #
-  2 => 18,
-  3 => 19,
-  4 => 20,
-  5 => 21,
-  6 => 22,
-  7 => 23,
-  8 => 24,
-  38 => 692,
-  40 => 692,
-  45 => 689,
+  1 => 0
 }                                                                              #
 #                                                                              #
 # These are the different things to be shown in each row of the namebox.  You  #
@@ -197,28 +184,20 @@ STATES ={                                                                      #
 # element windows are dependant on the number of rows you set here with a max  #
 # of 4 rows and a minimum of 2 rows.                                           #
 NAMEBOX ={                                                                     #
-  0 => [:atk, :def],
-  1 => [:agi, :luk],
-  2 => [:eva, :pdr],
-  3 => [:states],
-}
-#NAMEBOX ={                                                                     #
-  #0 => [:atk, :def],
-  #1 => [:mat, :mdf],
-  #2 => [:agi, :luk,],
-  #3 => [:eva, :mev,],
-  #4 => [:pdr, :mdr],
-  #5 => [:states],
-#}
-#
+  0 => [:name],
+  1 => [:hp],
+  2 => [:atk, :def,],
+  3 => [:mat, :mdf,],
+  4 => [:agi, :luk,],
+}                                                                              #
 #                                                                              #
 ###-----                                                                -----###
 #  The following options can only be used if CP Pop-ups version 1.2 or higher  #
 #  is also present in the game.                                                #
 #                                                                              #
 # The text to display for skills that a battler is strong or weak to.          #
-WEAK_POP = "Weakness" # Default = "Weakness"                                   #
-STRONG_POP = "Resist" # Default = "Resist"                                     #
+WEAK_POP = "Weakness!" # Default = "Weakness"                                   #
+STRONG_POP = "Resisted!" # Default = "Resist"                                     #
 #                                                                              #
 ###--------------------------------------------------------------------------###
 
@@ -423,7 +402,7 @@ class Scene_Battle < Scene_Base
     @scan_info = Window_ScanInfo.new
     @scan_info.z = 400
     @scan_info.visible = false
-    @scan_bio.visible = false
+    @scan_bio.visible = false #new line
     scan_windows.each do |wind|
       wind.viewport = @scan_viewport
     end
@@ -482,7 +461,7 @@ class Scene_Battle < Scene_Base
     cp_scan_update
     return unless @scan_info && @enemy_window
     @scan_info.visible = @enemy_window.active
-    @scan_bio.visible = @enemy_window.active
+    @scan_bio.visible = @scan_enemy.active #new line
   end
   
   def open_scan_window(target = nil)
@@ -523,7 +502,6 @@ class Scene_Battle < Scene_Base
   end
   
   alias cp_scan_action invoke_item
-
   def invoke_item(target, item)
     scan_windows.each {|w| w.index = $game_troop.alive_members.index(target)}
     target.cp_scan_enemy(item) if item.libra?
@@ -541,8 +519,9 @@ class Window_ScanEnemy < Window_Selectable
   
   def initialize
     w = !CP::SCAN::PERCENTAGE_BASED ? 208 : 200
-    h = fitting_height([[CP::SCAN::NAMEBOX.size, 2].max, 45].min)
+    h = fitting_height([[CP::SCAN::NAMEBOX.size, 2].max, 6].min)
     super(0, 0, w, h)
+    self.windowskin = Cache.system("Window2")
     @index = 0
     @lock_foe
     refresh
@@ -554,7 +533,6 @@ class Window_ScanEnemy < Window_Selectable
       next unless [0, 1, 2, 3, 4, 5].include?(id)
       next if (array.nil? || !array.is_a?(Array) || array.empty?)
       wd = contents.width / array.size
-      return if enemy.nil?
       array.each_with_index do |key, i|
         case key
         when :name
@@ -577,14 +555,6 @@ class Window_ScanEnemy < Window_Selectable
           draw_enemy_agi(enemy, wd * i + 2, id * line_height, wd - 4)
         when :luk
           draw_enemy_luk(enemy, wd * i + 2, id * line_height, wd - 4)
-        when :pdr
-          draw_enemy_pdr(enemy, wd * i + 2, id * line_height, wd - 4)
-        when :mdr
-          draw_enemy_mdr(enemy, wd * i + 2, id * line_height, wd - 4)
-        when :eva
-          draw_enemy_eva(enemy, wd * i + 2, id * line_height, wd - 4)
-        when :mev
-          draw_enemy_mev(enemy, wd * i + 2, id * line_height, wd - 4)
         when :tp
           draw_enemy_tp(enemy, wd * i + 2, id * line_height, wd - 4)
         end
@@ -714,81 +684,17 @@ class Window_ScanEnemy < Window_Selectable
     unless battler.enemy.hidden_stats.include?(:tp)
       draw_gauge(x, y, width, battler.tp_rate, tp_gauge_color1, tp_gauge_color2)
       change_color(system_color)
-      if $game_switches[15] == true
-        draw_text(x, y, 30, line_height, "Chrg")
-      else
-        draw_text(x, y, 30, line_height, Vocab::tp_a)
-      end
+      draw_text(x, y, 30, line_height, Vocab::tp_a)
       change_color(tp_color(battler))
       draw_text(x + 32, y, width - 32, line_height, battler.tp.to_i, 2)
     else
       change_color(system_color)
-      if $game_switches[15] == true
-        draw_text(x, y, 30, line_height, "Chrg")
-      else
-        draw_text(x, y, 30, line_height, Vocab::tp_a)
-      end
+      draw_text(x, y, 30, line_height, Vocab::tp_a)
       change_color(normal_color)
       draw_text(x + 32, y, width - 32, line_height, CP::SCAN::HIDDEN_TEXT, 2)
     end
   end
-  def draw_enemy_pdr(battler, x, y, width = 40)
-    unless battler.enemy.hidden_stats.include?(:pdr)
-      change_color(system_color)
-      draw_text(x, y, 30, line_height, "PDR")
-      change_color(normal_color)
-      draw_text(x + 25, y, width - 32, line_height, (battler.pdr * 100).round(1), 2)
-      draw_text(x + 35, y, width - 32, line_height, "%", 2)
-    else
-      change_color(system_color)
-      draw_text(x, y, 30, line_height,"PDR")
-      change_color(system_color)
-      draw_text(x + 32, y, width - 32, line_height, CP::SCAN::HIDDEN_TEXT, 2)
-    end
-  end
-  def draw_enemy_mdr(battler, x, y, width = 40)
-    unless battler.enemy.hidden_stats.include?(:mdr)
-      change_color(system_color)
-      draw_text(x, y, 30, line_height, "MDR")
-      change_color(normal_color)
-      draw_text(x + 25, y, width - 32, line_height, (battler.mdr * 100).round(1) + " %".to_i, 2)
-      draw_text(x + 35, y, width - 32, line_height, "%", 2)
-    else
-      change_color(system_color)
-      draw_text(x, y, 30, line_height, "MDR")
-      change_color(system_color)
-      draw_text(x + 32, y, width - 32, line_height, CP::SCAN::HIDDEN_TEXT, 2)
-    end
-  end
-  def draw_enemy_eva(battler, x, y, width = 40)
-    unless battler.enemy.hidden_stats.include?(:eva)
-      change_color(system_color)
-      draw_text(x, y, 30, line_height, "EVA")
-      change_color(normal_color)
-      draw_text(x + 25, y, width - 32, line_height, (battler.eva * 100).round(0) + " %".to_i, 2)
-      draw_text(x + 35, y, width - 32, line_height, "%", 2)
-    else
-      change_color(system_color)
-      draw_text(x, y, 30, line_height, "EVA")
-      change_color(system_color)
-      draw_text(x + 32, y, width - 32, line_height, CP::SCAN::HIDDEN_TEXT, 2)
-    end
-  end
-  def draw_enemy_mev(battler, x, y, width = 40)
-    unless battler.enemy.hidden_stats.include?(:mev)
-      change_color(system_color)
-      draw_text(x, y, 30, line_height, "MEV")
-      change_color(normal_color)
-      draw_text(x + 25, y, width - 32, line_height, (battler.mev * 100).round(0) + " %".to_i, 2)
-      draw_text(x + 35, y, width - 32, line_height, "%", 2)
-    else
-      change_color(system_color)
-      draw_text(x, y, 30, line_height, "MEV")
-      change_color(system_color)
-      draw_text(x + 32, y, width - 32, line_height, CP::SCAN::HIDDEN_TEXT, 2)
-    end
-  end
-
+  
   def process_pageup
     return if @lock_foe
     super
@@ -806,8 +712,9 @@ end
 class Window_ScanElements < Window_Selectable
   def initialize
     w = window_width
-    h = fitting_height([[CP::SCAN::NAMEBOX.size, 2].max, 6].min)
+    h = fitting_height([[CP::SCAN::NAMEBOX.size, 2].max, 4].min)
     super(Graphics.width - w, 0, w, h)
+    self.windowskin = Cache.system("Window2")
     @index = 0
     refresh
   end
@@ -827,7 +734,6 @@ class Window_ScanElements < Window_Selectable
   end
   
   def disc_element_type
-    return if enemy.nil?
     draw_all_weak
     draw_all_resist
   end
@@ -855,7 +761,6 @@ class Window_ScanElements < Window_Selectable
   end
   
   def weaknesses
-    return if enemy.nil?
     result = []
     CP::SCAN::ELEMENTS.each do |id, icon|
       next unless enemy.element_rate(id) > 1.0
@@ -876,7 +781,6 @@ class Window_ScanElements < Window_Selectable
   end
   
   def resistances
-    return if enemy.nil?
     result = []
     CP::SCAN::ELEMENTS.each do |id, icon|
       next unless enemy.element_rate(id) < 1.0
@@ -907,13 +811,7 @@ class Window_ScanElements < Window_Selectable
     CP::SCAN::ELEMENTS.each do |id, icon|
       known = $game_system.scan_known_elements(enemy).include?(id)
       if known
-        if $imported["YEA-Element Absorb"] == true && enemy.element_absorb?(id)
-          rate = sprintf("Dr", "")
-        elsif $imported["YEA-ElementReflect"] == true && enemy.element_reflect_rate(id) == 1 
-          rate = sprintf("R.", "%d%", enemy.element_reflect_rate(id) * 100)
-        else
-          rate = sprintf("%d%", enemy.element_rate(id) * 100)
-        end
+        rate = sprintf("%d%", enemy.element_rate(id) * 100)
         state_color(enemy.element_rate(id))
       else
         rate = CP::SCAN::HIDDEN_STAT
@@ -983,11 +881,11 @@ class Window_ScanElements < Window_Selectable
 end
 
 class Window_ScanBio < Window_Selectable
-  attr_accessor :current_bio_page
   def initialize
     w = Graphics.width
     h = fitting_height(4)
     super(0, Graphics.height - h, w, h)
+    self.windowskin = Cache.system("Window2")
     @current_bio_page = 1
     refresh
   end
@@ -1005,46 +903,38 @@ class Window_ScanBio < Window_Selectable
       return bio2
     end
     if @current_bio_page == 3
-      return bio3 
+      return bio3
     end
   end
   
   def bio
-    return if enemy.nil?
     temp = enemy.bio
     result = ""; line = ""
     temp.split(/ /).each do |word|
-      if word.include?("Drops:")
-        line += "#{current_line}\n"
-        drops_text = extract_drops_text
-        result += "#{line}#{drops_text}\n"  # Add the drops below the "Drops:" line
-        line = ""  # Clear the line for any further text
-      else
-        sz = contents.text_size(line).width + contents.text_size("#{word}").width
-        if sz > contents.width - 2
-          if line.empty?
-            word2 = ""
-            word.chars do |c|
-              s2 = contents.text_size(line).width + contents.text_size("#{c}").width
-              if s2 <= contents.width - 2
-                line += c
-              else
-                word2 += c
-              end
+      sz = contents.text_size(line).width + contents.text_size("#{word}").width
+      if sz > contents.width - 2
+        if line.empty?
+          word2 = ""
+          word.chars do |c|
+            s2 = contents.text_size(line).width + contents.text_size("#{c}").width
+            if s2 <= contents.width - 2
+              line += c
+            else
+              word2 += c
             end
-            word = word2
           end
-          result += "#{line}\n"
-          line = "#{word} "
-          next
-        else
-          line += "#{word} "
+          word = word2
         end
-        nl = (line =~ /\\n/i)
-        if line.length - 2 == nl
-          result += "#{line}\n"
-          line = word
-        end
+        result += "#{line}\n"
+        line = "#{word} "
+        next
+      else
+        line += "#{word} "
+      end
+      nl = (line =~ /\\n/i)
+      if line.length - 2 == nl
+        result += "#{line}\n"
+        line = word
       end
     end
     result += "#{line}"
@@ -1099,10 +989,14 @@ class Window_ScanBio < Window_Selectable
     result = ""; line = ""
     temp.split(/ /).each do |word|
       if word.include?("Drops:")
-        line += "#{current_line}\*n"
         drops_text = extract_drops_text
-        result += "#{line}#{drops_text}\n"  # Add the drops below the "Drops:" line
-        line = ""  # Clear the line for any further text
+        result += "#{line}#{drops_text}\n" 
+        line = ""  
+      elsif word.include?("Reflect:")
+        line += "#{enemy.bio3}\n"
+        drops_text = extract_reflect_text
+        result += "#{line}#{drops_text}\n"
+        line = ""
       else
         sz = contents.text_size(line).width + contents.text_size("#{word}").width
         if sz > contents.width - 2
@@ -1134,11 +1028,64 @@ class Window_ScanBio < Window_Selectable
     result += "#{line}"
     return result
   end
+  
+  def extract_reflect_text
+    reflect_text = ""
+    repel_text = "Repel:\n"
+    
+    reflect_elements = []
+    repel_elements = []
+    
+    enemy.note.split(/[\r]+/).each do |line|
+      case line
+      when /<element reflect (\d+): \+(\d+)%>/i
+        element_id = $1.to_i
+        chance = $2.to_i
+        if chance >= 100
+          repel_elements.push(element_id)
+        else
+          reflect_elements.push([element_id, chance])
+        end
+      when /<element repel (\d+)>/i
+        element_id = $1.to_i
+        repel_elements.push(element_id)
+      end
+    end
+    
+    unless reflect_elements.empty?
+      reflect_elements.each do |element_id, chance|
+        icon_id = CP::SCAN::ELEMENTS[element_id]
+        reflect_text += "\\i[#{icon_id}] #{chance}%, "
+      end
+      reflect_text = reflect_text[0...-2]
+    else
+      reflect_text += "None"
+    end
+    
+    unless repel_elements.empty?
+      repel_elements.uniq.each do |element_id|
+        icon_id = CP::SCAN::ELEMENTS[element_id]
+        repel_text += "\\i[#{icon_id}] "
+      end
+    else
+      repel_text += "None"
+    end
+    
+    reflect_text += "\n" + repel_text
+    return reflect_text
+  end
 
+
+  
   def extract_drops_text
     drops_info = enemy.drop_items  # Get the drops info from the enemy
     drops_info += enemy.extra_drops if $imported["YEA-ExtraDrops"] == true
     drops_text = ""
+    if drops_info[0].kind == 0 && drops_info[1].kind == 0 && drops_info[2].kind == 0
+      drops_text = "None"
+      drops_text.strip!  # Remove any trailing space
+      return drops_text
+    end
     count = 0
     drops_info.each do |drop|
       if drop.kind == 1
@@ -1151,12 +1098,7 @@ class Window_ScanBio < Window_Selectable
         item = $data_armors[drop.data_id]
         color = 14
       else
-        next if count > 0
-      end
-      if drop.kind == 0 && count == 0
-        drops_text += "None"
-        drops_text.strip!  # Remove any trailing space
-        return drops_text
+        next
       end
       icon_id = item.icon_index
       name = item.name
@@ -1167,81 +1109,46 @@ class Window_ScanBio < Window_Selectable
     drops_text.strip!  # Remove any trailing space
     return drops_text
   end
-
+  
   def enemy
-    return if $game_troop.alive_members[@index].nil?
     $game_troop.alive_members[@index].enemy
   end
   
   def update
     super
     return unless self.visible
-    #return unless !@scan_bio.nil?
-    if Input.trigger?(:Z)
-      if can_go_to_next_page?
+    if Input.trigger?(:Z) # D button for page up
         Sound.play_cursor
         toggle_bio_page(1) # Page up
         refresh
-      else
-        Sound.play_cancel
-      end
-    elsif Input.trigger?(:X) # A button for page down
-      if can_go_to_previous_page?
+    end
+    if Input.trigger?(:X) # A button for page down
         Sound.play_cursor
         toggle_bio_page(-1) # Page down
         refresh
-      else
-        Sound.play_cancel
-      end
     end
-  end
-  
-  def can_go_to_next_page?
-    case @current_bio_page
-    when 1
-      enemy.bio2 != "" || enemy.bio3 != "" # Check if page 2 or 3 exists
-    when 2
-      enemy.bio3 != "" # Only go to page 3 if it exists
-    when 3
-      true # Always able to go to page 1 from page 3
-    else
-      false
-    end
-  end
-  
-  def can_go_to_previous_page?
-    case @current_bio_page
-    when 2
-      true # Can always go back to page 1 from page 2
-    when 3
-      if enemy.bio2 == "" && enemy.bio != ""
-        true
-      else
-        enemy.bio2 != ""
-      end
-    when 1
-      if enemy.bio3 != ""
-        true 
-      else
-        false
-      end
-    else
-      false
-    end
+    rescue Exception => error
+      puts "What happened: #{error}"
   end
   
   def toggle_bio_page(direction)
     if direction == 1 # Page up
-      if @current_bio_page == 1 && enemy.bio2 == "" && enemy.bio3 != "" 
-        @current_bio_page = 3 # Jump from page 1 to page 3
-      else
-        @current_bio_page = @current_bio_page == 3 ? 1 : @current_bio_page + 1
+      case @current_bio_page
+      when 1
+        @current_bio_page = 2
+      when 2
+        @current_bio_page = 3
+      when 3
+        @current_bio_page = 1
       end
-    elsif direction == -1 # Page down
-      if @current_bio_page == 3 && enemy.bio2 == ""
-        @current_bio_page = 1 # Go back to page 1 if page 2 doesn't exist
-      else
-        @current_bio_page = @current_bio_page == 1 ? 3 : @current_bio_page - 1
+    else # Page down
+      case @current_bio_page
+      when 1
+        @current_bio_page = 3
+      when 2
+        @current_bio_page = 1
+      when 3
+        @current_bio_page = 2
       end
     end
   end
@@ -1268,14 +1175,12 @@ class RPG::Enemy < RPG::BaseItem
     set_bio_info if @bio.nil?
     return @bio
   end
-  
   def bio2
-    set_bio_info if @bio2.nil? # Make sure we set both bios when needed.
+    set_bio_info if @bio2.nil?
     return @bio2
   end
-  
   def bio3
-    set_bio_info if @bio3.nil? # Make sure we set both bios when needed.
+    set_bio_info if @bio3.nil?
     return @bio3
   end
   
@@ -1287,7 +1192,7 @@ class RPG::Enemy < RPG::BaseItem
   def set_bio_info
     @bio = ""
     @bio2 = "\\*\\c[9]Drops:"
-    @bio3 = ""
+    @bio3 = "\\*\\c[9]Reflect:"
     get_bio = false
     get_bio2 = false
     get_bio3 = false
@@ -1319,7 +1224,7 @@ class RPG::Enemy < RPG::BaseItem
         @bio2 += "#{line}\n"
       end
       if get_bio3
-        @bio3 += "#{line}\n"
+        @bio2 += "#{line}\n"
       end
     end
   end
@@ -1391,6 +1296,7 @@ class Window_ScanInfo < Window_Base
   def initialize
     super(CP::SCAN::INFO_X, CP::SCAN::INFO_Y, 280, fitting_height(1))
     self.back_opacity = 255
+    self.windowskin = Cache.system("Window2")
     refresh
   end
   
