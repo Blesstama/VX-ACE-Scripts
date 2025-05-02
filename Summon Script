@@ -19,8 +19,10 @@
 # + next one), if none then permanent until end of battle (or if dead
 # in the end of turn in module)
 # keep in mind that said clone will be exactly same as original actor
+# if you wish to be able to summon...summon and have ability to customise him,
+# you need to firstly add him by this script call:
 # $game_party.add_summon_team(28)
-# this script call adds actor 18 as summon and required to, well, summon him in <Actor Clone>
+# this will add actor 28 as summon and open Summon button in command list.
 # -----------------------------------------------------------------------------
 module Bless
   DeathGone = true #If true clones will be gone if dead
@@ -280,10 +282,12 @@ class Game_Party < Game_Unit
 end
 
 class Window_MenuCommand < Window_Command
-  alias summon_menu_make_command_list make_command_list
   def make_command_list
-    summon_menu_make_command_list
+    add_main_commands
+    add_original_commands
     add_summon_command if !$game_party.summon_list.empty?
+    add_save_command
+    add_game_end_command
   end
   
   def add_summon_command
@@ -422,12 +426,14 @@ class Scene_Menu < Scene_MenuBase
 
   def create_command_window
     summon_system_create_command_window
-    @command_window.set_handler(:summon, method(:command_summon))
+    @command_window.set_handler(:summon,    method(:command_summon))
   end
 
   def command_summon
-    @command_window.deactivate
+    @command_window.close
     @status_window.hide if @status_window
+    
+    @equipment_window.hide if @equipment_window
 
     @summon_window = Window_SummonList.new
     setup_action_window
@@ -483,7 +489,9 @@ class Scene_Menu < Scene_MenuBase
       @action_window.dispose
       @action_window = nil
     end
+    @command_window.open
     @command_window.activate
+    @equipment_window.show if @equipment_window
     @command_window.show
     @status_window.show
   end
@@ -557,6 +565,7 @@ class Scene_Menu < Scene_MenuBase
   end
   
   def on_status
+    @action_window.close
     if $imported["YEA-StatusMenu"] == true
       @help_window3 = Window_Help.new
       
@@ -602,17 +611,18 @@ class Scene_Menu < Scene_MenuBase
       @command_window3.close
       @command_window3.dispose
       @command_window3 = nil
-    end
-    if @status_window3
-      @status_window3.close
-      @status_window3.dispose
-      @status_window3 = nil
-    end
-    if @item_window
-      @item_window.close
+      end
+      if @status_window3
+        @status_window3.close
+        @status_window3.dispose
+        @status_window3 = nil
+      end
+      if @item_window
+        @item_window.close
       @item_window.dispose
       @item_window = nil
     end
+    @action_window.open if @action_window 
     @action_window.activate if @action_window 
   end
 
