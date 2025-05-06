@@ -135,15 +135,16 @@ end
 #--------------------------------------------------------------------------
 # * Overwrites script call command to not crash game + give small hint on where it died
 #--------------------------------------------------------------------------
-def command_355
+class Game_Interpreter
+  def command_355
+    event_id = @event_id
+    map_id = $game_map.map_id unless $game_map.map_id == nil
+    common_event_id = $game_temp.common_event_id
     script = @list[@index].parameters[0] + "\n"
     while next_event_code == 655
       @index += 1
       script += @list[@index].parameters[0] + "\n"
     end
-    event_id = @event_id
-    map_id = $game_map.map_id unless $game_map.map_id == nil
-    common_event_id = $game_temp.common_event_id
     eval(script)
     rescue Exception => error
       puts "Map id: #{map_id}"
@@ -151,4 +152,5 @@ def command_355
       puts "Common event id: #{common_event_id}"
       puts "Script call: #{@list[@index].parameters[0]}"
       puts "What happened: #{error}"
+  end
 end
