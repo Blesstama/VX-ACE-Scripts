@@ -129,6 +129,8 @@ class Spriteset_Battle
   def change_image(name, name2)
     @back1_sprite.bitmap = Bitmap.new("Graphics/Battlebacks1/#{name}.png")
     @back2_sprite.bitmap = Bitmap.new("Graphics/Battlebacks1/#{name2}.png")
+    @back1_sprite.z = 0
+    center_sprite(@back1_sprite)
     update
   end
 end
