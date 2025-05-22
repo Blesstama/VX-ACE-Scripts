@@ -49,34 +49,6 @@
 # </Before Eval>
 # if currently used item has more or equal 3, give 2 tp per it, else 5
 # -----------------------------------------------------------------------------
-class Game_Enemy < Game_Battler
-  def note
-    enemy.note.to_s
-  end
-
-  def get_all_notes(*args)
-    notes = ""
-    notes += note unless args.include?(:self)
-    states.compact.each { |state| notes += state.note } unless args.include?(:state)
-    notes
-  end
-end
-
-class Game_Actor < Game_Battler
-  def note
-    actor.note.to_s
-  end
-
-  def get_all_notes(*args)
-    notes = ""
-    notes += note unless args.include?(:self)
-    notes += self.class.note unless args.include?(:class)
-    equips.compact.each { |equip| notes += equip.note } unless args.include?(:equip)
-    states.compact.each { |state| notes += state.note } unless args.include?(:state)
-    notes
-  end
-end
-
 class Game_Battler < Game_BattlerBase
   alias itemsapplied item_apply
   alias damageapplied execute_damage
