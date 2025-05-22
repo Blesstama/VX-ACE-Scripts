@@ -1,5 +1,36 @@
+EVERYTHING BELOW THIS IS FREE TO ADD IT JUST GIVES NEW FEATURES/REWRITES TO POSITIVE
 #--------------------------------------------------------------------------
-# * Ability to do log messages in battle/map
+# * Ability to pick all notes from actor and enemy (mandatory for some of my scripts)
+#--------------------------------------------------------------------------
+class Game_Enemy < Game_Battler
+  def note
+    enemy.note.to_s
+  end
+
+  def get_all_notes(*args)
+    notes = ""
+    notes += note unless args.include?(:self)
+    states.compact.each { |state| notes += state.note } unless args.include?(:state)
+    notes
+  end
+end
+
+class Game_Actor < Game_Battler
+  def note
+    actor.note.to_s
+  end
+
+  def get_all_notes(*args)
+    notes = ""
+    notes += note unless args.include?(:self)
+    notes += self.class.note unless args.include?(:class)
+    equips.compact.each { |equip| notes += equip.note } unless args.include?(:equip)
+    states.compact.each { |state| notes += state.note } unless args.include?(:state)
+    notes
+  end
+end
+#--------------------------------------------------------------------------
+# * Ability to do log messages in battle/map (also mandatory for few)
 #--------------------------------------------------------------------------
 class Scene_Battle < Scene_Base 
   attr_accessor:log_window
@@ -8,40 +39,10 @@ end
 class Scene_Map < Scene_Base 
   attr_accessor:log_window
 end
-
-#--------------------------------------------------------------------------
-# * Atk Speed Fix (all skills have atk speed bonus and not just skill 1)
-#--------------------------------------------------------------------------
-class Game_Action
-  def speed
-    speed = subject.agi + rand(5 + subject.agi / 4)
-    speed += item.speed if item
-    speed += subject.atk_speed if item.is_a?(RPG::Skill)
-    speed
-  end
-end	
-#--------------------------------------------------------------------------
-# * Skill Rating Fix
-#--------------------------------------------------------------------------
-class Game_Enemy < Game_Battler
-  def make_actions
-    super
-    return if @actions.empty?
-    action_list = enemy.actions.select {|a| action_valid?(a) }
-    return if action_list.empty?
-    rating_max = action_list.collect {|a| a.rating }.max
-    #rating_zero = rating_max - 3 (old nae nae way)
-    rating_zero = -1
-    action_list.reject! {|a| a.rating <= rating_zero }
-    @actions.each do |action|
-      action.set_enemy_action(select_enemy_action(action_list, rating_zero))
-    end
-  end
-end
 #--------------------------------------------------------------------------
 # * Buffs Add-On
 #--------------------------------------------------------------------------
-class Game_Battler < Game_BattlerBase
+class Game_Battler < Game_BattlerBase	
   #--------------------------------------------------------------------------
   # * Check if battler has any buffed parameters
   #--------------------------------------------------------------------------
@@ -79,19 +80,11 @@ class Game_Battler < Game_BattlerBase
   end
 end
 #--------------------------------------------------------------------------
-# * Substitute Buff
-#--------------------------------------------------------------------------
-class Scene_Battle < Scene_Base
-  def check_substitute(target, item)
-    target.hp < target.mhp / 2 && (!item || !item.certain?)
-  end
-end
-#--------------------------------------------------------------------------
 # * Manipulations with enemy
 #--------------------------------------------------------------------------
 class Game_Enemy < Game_Battler
   #--------------------------------------------------------------------------
-  # * Change image
+  # * Change image he use (use name from Battlers folder)
   #--------------------------------------------------------------------------
   def swapimage(name)
     @battler_name = name
@@ -154,5 +147,63 @@ class Game_Interpreter
       puts "Common event id: #{common_event_id}"
       puts "Script call: #{@list[@index].parameters[0]}"
       puts "What happened: #{error}"
+  end
+end
+
+EVERYTHING BELOW THIS IS OVERWRITES/DEBATABLE CHANGES
+
+#--------------------------------------------------------------------------
+# * Atk Speed Fix (all skills have atk speed bonus and not just skill 1)
+#--------------------------------------------------------------------------
+class Game_Action
+  def speed
+    speed = subject.agi + rand(5 + subject.agi / 4)
+    speed += item.speed if item
+    speed += subject.atk_speed if item.is_a?(RPG::Skill)
+    speed
+  end
+end	
+#--------------------------------------------------------------------------
+# * Skill Rating alterating by accepting all ratings (no 100% ones)
+#--------------------------------------------------------------------------
+class Game_Enemy < Game_Battler
+  def make_actions
+    super
+    return if @actions.empty?
+    action_list = enemy.actions.select {|a| action_valid?(a) }
+    return if action_list.empty?
+    rating_max = action_list.collect {|a| a.rating }.max
+    #rating_zero = rating_max - 3 (old nae nae way)
+    rating_zero = -1
+    action_list.reject! {|a| a.rating <= rating_zero }
+    @actions.each do |action|
+      action.set_enemy_action(select_enemy_action(action_list, rating_zero))
+    end
+  end
+  #--------------------------------------------------------------------------
+  # Alters enemy select to make that it will 100% use skills with rating 10 (for charge attacks)
+  #--------------------------------------------------------------------------
+  def select_enemy_action(action_list, rating_zero)
+    sum = action_list.inject(0) {|r, a| r += a.rating - rating_zero }
+    max = action_list.collect {|a| a.rating }.max
+    if max >= 10
+      action_list.reject! { |skill| skill.rating < 9 }
+      puts "list: #{action_list}"
+      return action_list.sample
+    end
+    return nil if sum <= 0
+    value = rand(sum)
+    action_list.each do |action|
+      return action if value < action.rating - rating_zero
+      value -= action.rating - rating_zero
+    end
+  end	
+end
+#--------------------------------------------------------------------------
+# * Substitute Buff
+#--------------------------------------------------------------------------
+class Scene_Battle < Scene_Base
+  def check_substitute(target, item)
+    target.hp < target.mhp / 2 && (!item || !item.certain?)
   end
 end
