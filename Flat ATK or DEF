@@ -89,35 +89,6 @@
 #==============================================================================
 # ■ Game_BattlerBase
 #==============================================================================
-
-class Game_Enemy < Game_Battler
-  def note
-    enemy ? enemy.note : ""
-  end
-
-  def get_all_notes(*args)
-    notes = ""
-    notes += note if !args.include?(:self)
-    states.compact.each {|state| notes += state.note } if !args.include?(:state)
-    notes
-  end
-end
-
-class Game_Actor < Game_Battler
-  def note
-    actor ? actor.note : ""
-  end
-
-  def get_all_notes(*args)
-    notes = ""
-    notes += note if !args.include?(:self)
-    notes += self.class.note if !args.include?(:class)
-    equips.compact.each {|equip| notes += equip.note } if !args.include?(:equip)
-    states.compact.each {|state| notes += state.note } if !args.include?(:state)
-    notes
-  end
-end
-
 class Game_BattlerBase
   def get_flat_value(regex)
     regexp = Regexp.new(regex, Regexp::IGNORECASE)
