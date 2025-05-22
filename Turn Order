@@ -172,7 +172,12 @@ class Sprite_BattleOrder < Sprite
   end
   
   def set_actor_face_rect(sprite, actor)
-    face_index = actor.face_index
+    if actor.note =~ /<actor faceset:\s*([\w\s]+),\s*(\d+)>/i
+      face_index = $2.to_i
+      sprite.bitmap = Cache.face(actor.face_name).clone
+    else
+      face_index = actor.face_index
+    end
     face_columns = sprite.bitmap.width / 96
     face_x = (face_index % face_columns) * 96
     face_y = (face_index / face_columns) * 96
