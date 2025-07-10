@@ -26,23 +26,37 @@
 # <dg(ac) item: +(-)x>
 # your parameter of DG/AC will go up/down by X more when someone use item
 # that increase dg/ac
-# -----------------------------------------------------------------------------
-$imported = {} if $imported.nil?
-$imported[:bless_dietary_guilt] = false
 
-if $imported[:bless_dietary_guilt] == true
+# <dg(ac) max: +(-)x>
+# your parameter of DG/AC will have higher/lower cap before penalty.
+# -----------------------------------------------------------------------------
+#
+# CUSTOMIZE PART
+module BLESS
+  module DGAC
+    module CUSTOM
+      INITIAL_DG_PER_TURN = 10
+      INITIAL_AC_PER_TURN = 10
+      STATE_DG_THRESHOLD = 100
+      STATE_AC_THRESHOLD = 100
+      STATE_DG_ID = 20
+      STATE_AC_ID = 21
+      WORK = 999
+    end
+  end
+end
+# NO MORE NON RISKY CUSTOMIZE
+
 #short the text meaning by module
 module BLESS
   module DGAC
     module CUSTOM
-      #check which state be DG overload
-      HP_PAIN = 218
-      #check which state will be AC overload
-      MP_PAIN = 219
       DG_ITEM = /<dg item:[ ]([\+\-]\d+)>/i
       DG_TURN = /<dg turn:[ ]([\+\-]\d+)>/i
+      DG_MAX = /<dg max:[ ]([\+\-]\d+)>/i
       AC_ITEM = /<ac item:[ ]([\+\-]\d+)>/i
       AC_TURN = /<ac turn:[ ]([\+\-]\d+)>/i
+      AC_MAX = /<ac max:[ ]([\+\-]\d+)>/i
 
     end
   end
@@ -73,15 +87,18 @@ end
 # Increase numbers based on notetags before
 class RPG::BaseItem
   attr_accessor :dg_item
+  attr_accessor :dg_turn
+  attr_accessor :dg_max
   attr_accessor :ac_item
   attr_accessor :ac_turn
-  attr_accessor :dg_turn
-
+  attr_accessor :ac_max
   def load_notetags_dgac
     @dg_item = 0
+    @dg_turn = 0
+    @dg_max = 0
     @ac_item = 0
     @ac_turn = 0
-    @dg_turn = 0
+    @ac_max = 0
 
     note_lines = self.note.split(/[\r]+/)
     note_lines.each do |line|
@@ -90,10 +107,14 @@ class RPG::BaseItem
         @dg_item = $1.to_i
       when BLESS::DGAC::CUSTOM::DG_TURN
         @dg_turn = $1.to_i
+      when BLESS::DGAC::CUSTOM::DG_MAX
+        @dg_max = $1.to_i
       when BLESS::DGAC::CUSTOM::AC_ITEM
         @ac_item = $1.to_i
       when BLESS::DGAC::CUSTOM::AC_TURN
         @ac_turn = $1.to_i
+      when BLESS::DGAC::CUSTOM::AC_MAX
+        @ac_max = $1.to_i
       end
     end
   end
@@ -104,9 +125,11 @@ class Game_Actor < Game_Battler
   attr_accessor :dg
   attr_accessor :ac
   attr_accessor :dg_item
-  attr_accessor :ac_item
   attr_accessor :dg_turn
+  attr_accessor :dg_max
   attr_accessor :ac_turn
+  attr_accessor :ac_item
+  attr_accessor :ac_max
 
   def initialize(actor_id)
     super()
@@ -116,19 +139,23 @@ class Game_Actor < Game_Battler
     @ac = 0
     @dg_item = 0
     @ac_item = 0
-    @dg_turn = 0
-    @ac_turn = 0
+    @dg_turn = BLESS::DGAC::CUSTOM::INITIAL_DG_PER_TURN
+    @ac_turn = BLESS::DGAC::CUSTOM::INITIAL_AC_PER_TURN
   end
 
   # What does item/skills use when notetag (and adding new state upon going over 100)
   def add_dg_effect(value)
+    return if $game_switches[BLESS::DGAC::CUSTOM::WAIT]
     @dg += (value + self.dgitem)
-    add_state(BLESS::DGAC::CUSTOM::HP_PAIN) if @dg >= 100
+    puts "dg: #{@dg}"
+    add_state(BLESS::DGAC::CUSTOM::STATE_DG_ID) if @dg >= BLESS::DGAC::CUSTOM::STATE_DG_THRESHOLD + self.dgmax
   end
 
   def add_ac_effect(value)
+    return if $game_switches[BLESS::DGAC::CUSTOM::WAIT]
     @ac += (value + self.acitem)
-    add_state(BLESS::DGAC::CUSTOM::MP_PAIN) if @ac >= 100
+    puts "ac: #{@dg}"
+    add_state(BLESS::DGAC::CUSTOM::STATE_AC_ID) if @ac >= BLESS::DGAC::CUSTOM::STATE_AC_THRESHOLD + self.acmax
   end
 end
 
@@ -182,6 +209,20 @@ class Game_BattlerBase
     states.compact.each { |state| n += state.dg_turn }
     n.to_i
   end
+  
+  def dgmax
+    n = 0.0
+    if actor?
+      n += actor.dg_max
+      n += self.class.dg_max
+      equips.compact.each { |equip| n += equip.dg_max }
+    else
+      n += enemy.dg_max
+      n += self.class.dg_max if $imported["YEA-Doppelganger"] && !self.class.nil?
+    end
+    states.compact.each { |state| n += state.dg_max }
+    n.to_i
+  end
 
   def acitem
     n = 0.0
@@ -210,6 +251,19 @@ class Game_BattlerBase
     states.compact.each { |state| n += state.ac_turn }
     n.to_i
   end
+  def acmax
+    n = 0.0
+    if actor?
+      n += actor.ac_max
+      n += self.class.ac_max
+      equips.compact.each { |equip| n += equip.ac_max }
+    else
+      n += enemy.ac_max
+      n += self.class.ac_max if $imported["YEA-Doppelganger"] && !self.class.nil?
+    end
+    states.compact.each { |state| n += state.ac_max }
+    n.to_i
+  end
 end
 
 # Where basically things happen
@@ -221,10 +275,10 @@ class Game_Actor < Game_Battler
   
   def make_damage_value(user, item)
     original_make_damage_value(user, item)
-    if item.damage.recover? && self.state?(BLESS::DGAC::CUSTOM::HP_PAIN)
+    if item.damage.recover? && self.state?(BLESS::DGAC::CUSTOM::STATE_DG_ID)
       @result.hp_damage *= -1 
     end
-    if item.damage.recover? && self.state?(BLESS::DGAC::CUSTOM::MP_PAIN)
+    if item.damage.recover? && self.state?(BLESS::DGAC::CUSTOM::STATE_AC_ID)
       @result.mp_damage *= -1 
     end
   end
@@ -247,19 +301,24 @@ class Game_Actor < Game_Battler
   
   def on_turn_end
     super
+    return if $game_switches[BLESS::DGAC::CUSTOM::WAIT]
     decrease1 = self.dg - (10 - self.dgturn)
     decrease2 = self.ac - (10 - self.acturn)
     @dg = [decrease1, 0].max
     @ac = [decrease2, 0].max
-    if self.dg <= 99 && self.state?(BLESS::DGAC::CUSTOM::HP_PAIN)
-      remove_state(BLESS::DGAC::CUSTOM::HP_PAIN)
-    elsif self.dg >= 100 && !self.state?(BLESS::DGAC::CUSTOM::HP_PAIN)
-      add_state(BLESS::DGAC::CUSTOM::HP_PAIN)
+    dgstate = BLESS::DGAC::CUSTOM::STATE_DG_ID
+    dgmax2 = BLESS::DGAC::CUSTOM::STATE_DG_THRESHOLD + self.dgmax
+    acstate = BLESS::DGAC::CUSTOM::STATE_AC_ID
+    acmax2 = BLESS::DGAC::CUSTOM::STATE_AC_THRESHOLD + self.acmax
+    if self.dg <= (dgmax2 - 1) && self.state?(dgstate)
+      remove_state(dgstate)
+    elsif self.dg >= dgmax2 && !self.state?(dgstate)
+      add_state(dgstate)
     end
-    if self.ac <= 99 && self.state?(BLESS::DGAC::CUSTOM::MP_PAIN)
-      remove_state(BLESS::DGAC::CUSTOM::MP_PAIN)
-    elsif self.ac >= 100 && !self.state?(BLESS::DGAC::CUSTOM::MP_PAIN)
-      add_state(BLESS::DGAC::CUSTOM::MP_PAIN)
+    if self.ac <= (acmax2 - 1) && self.state?(acstate)
+      remove_state(acstate)
+    elsif self.ac >= acmax2 && !self.state?(acstate)
+      add_state(acstate)
     end
   end
 end
@@ -287,7 +346,7 @@ class Game_Actor < Game_Battler
     value = (mhp * effect.value1 + effect.value2) * rec
     value *= user.pha if item.is_a?(RPG::Item)
     value = value.to_i
-    value *= -1 if self.state?(BLESS::DGAC::CUSTOM::HP_PAIN)
+    value *= -1 if self.state?(BLESS::DGAC::CUSTOM::STATE_DG_ID)
     @result.hp_damage -= value
     @result.success = true
     self.hp += value
@@ -299,7 +358,7 @@ class Game_Actor < Game_Battler
     value = (mmp * effect.value1 + effect.value2) * rec
     value *= user.pha if item.is_a?(RPG::Item)
     value = value.to_i
-    value *= -1 if self.state?(BLESS::DGAC::CUSTOM::MP_PAIN)
+    value *= -1 if self.state?(BLESS::DGAC::CUSTOM::STATE_AC_ID)
     @result.mp_damage -= value
     @result.success = true if value != 0
     self.mp += value
@@ -319,7 +378,7 @@ class Window_BattleStatus < Window_Selectable
   end
 
   def process_handling
-    if Input.press?(:CTRL)
+    if Input.press?(:CTRL) && $game_switches[BLESS::DGAC::CUSTOM::WAIT]
       if @ctrl_pressed && Time.now - @last_ctrl_time >= 1
         @dg_state = !@dg_state
         draw_all_items
@@ -359,7 +418,7 @@ class Window_BattleStatus < Window_Selectable
   end
 
   def draw_gauge_area_with_dg(rect, actor, index)
-    draw_actor_name(actor, rect.x, rect.y + index * line_height)
+    draw_actor_name(actor, rect.x + 4, rect.y + index * line_height)
     if @dg_state
       draw_actor_dg(actor, rect.x + 120, rect.y + index * line_height)
       draw_actor_ac(actor, rect.x + 220, rect.y + index * line_height)
@@ -372,14 +431,13 @@ class Window_BattleStatus < Window_Selectable
     change_color(system_color)
     draw_text(x, y, 120, line_height, "DG:")
     change_color(normal_color)
-    draw_text(160, y, 60, line_height, actor.dg.to_s, 2) unless actor.dg.nil?
+    draw_text(140, y, 60, line_height, actor.dg.to_s, 2) unless actor.dg.nil?
   end
 
   def draw_actor_ac(actor, x, y)
     change_color(system_color)
     draw_text(x, y, 120, line_height, "AC:")
     change_color(normal_color)
-    draw_text(240, y, 60, line_height, actor.ac.to_s, 2) unless actor.ac.nil?
+    draw_text(220, y, 60, line_height, actor.ac.to_s, 2) unless actor.ac.nil?
   end
-end
 end
