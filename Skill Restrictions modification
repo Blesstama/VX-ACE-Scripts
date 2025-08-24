@@ -833,7 +833,16 @@ class Game_Battler < Game_BattlerBase
   alias game_battler_item_apply_srs item_apply
   def item_apply(user, item)
     game_battler_item_apply_srs(user, item)
-    updated_limited_uses(user, item)
+    #updated_limited_uses(user, item)
+  end
+
+  #--------------------------------------------------------------------------
+  # alias method: use_item
+  #--------------------------------------------------------------------------
+  alias :baseusage :use_item
+  def use_item(item)
+    updated_limited_uses(self, item) if item.is_a?(RPG::Skill)
+    baseusage(item)
   end
   
   #--------------------------------------------------------------------------
