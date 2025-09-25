@@ -1,0 +1,90 @@
+#==============================================================================
+# ▼ Blesstama - Roaring Knight animation script???
+# -----------------------------------------------------------------------------
+# Enemy/State Notetags:
+# These notetags go in the X notebox in the database.
+# -----------------------------------------------------------------------------
+# <Floating>
+# <decrease: x, y, x1, y1>
+#
+#
+# <Floating> makes so enemy will go up and down in a pace that line 35 have
+#
+# <decrease: x, y, x1, x2> will make enemy left a afterimages of yourself
+# (it's highly recommended to pair it with <Floating> else it will look weird)
+#
+# x - initial x position for afterimage
+# y - initial x position for afterimage
+# x1 - how far away in X coordinate each afteimage will be from base sprite
+# y1 - how far away in Y coordinate each afteimage will be from base sprite
+class Sprite_Battler < Sprite_Base
+  attr_accessor :afterimage_sprite
+  #--------------------------------------------------------------------------
+  # alias method: initialize
+  #--------------------------------------------------------------------------
+  alias sprite_battler_initialize_misc initialize
+  def initialize(viewport, battler = nil)
+    sprite_battler_initialize_misc(viewport, battler)
+    create_back_sprites
+  end
+  def create_back_sprites
+    @afterimage_sprite = []
+  end
+  def update_back_sprites 
+    tags = [/<Floating>/, /<decrease: (-?\d+), (-?\d+), (-?\d+), (-?\d+)>/]
+    delay = (2..50).step(2).to_a
+    tags.each_with_index do |tag, i|
+      match = @battler.get_all_notes.match(tag)
+      if match
+        case i
+        when 0
+          self.y = @battler.screen_y + Math.sin(Graphics.frame_count * 0.1) * 20
+        when 1
+          decrease_x = match[1].to_i
+          decrease_y = match[2].to_i
+          global_x = match[3].to_i
+          global_y = match[4].to_i
+          if @afterimage_sprite.empty?
+            10.times do
+              sprite = Sprite_Battler.new(viewport, battler)
+              sprite.bitmap = bitmap
+              sprite.z = self.z - 1
+              sprite.ox = self.ox
+              sprite.oy = self.oy
+              sprite.x = self.x - decrease_x
+              sprite.y = self.y - decrease_y - 10
+              sprite.opacity = 75
+              @afterimage_sprite << sprite
+            end
+          end
+          @afterimage_sprite.each_with_index do |sprite, f|
+            next if Graphics.frame_count % delay[f] != 0
+            sprite.x = self.x - decrease_x + f * global_x
+            sprite.y = self.y - decrease_y + f * global_y
+          end
+        end
+      end
+    end
+    dispose_back_sprites if !@battler.alive? && !@afterimage_sprite.nil?
+    undispose_back_sprites if !@battler.alive? && !@afterimage_sprite.nil?
+  end
+  def dispose_back_sprites
+    @afterimage_sprite.each_with_index do |sprite, x|
+      sprite.opacity -= (250/(@effect_duration + 1)).to_i
+    end
+  end
+  def undispose_back_sprites
+    revert_to_normal
+    @afterimage_sprite.each_with_index do |sprite, x|
+      sprite.opacity += 2 unless sprite.opacity == 75
+    end
+  end
+  #--------------------------------------------------------------------------
+  # * Update Position
+  #--------------------------------------------------------------------------
+  alias base_update update_position
+  def update_position
+    base_update
+    update_back_sprites
+  end
+end
