@@ -1,0 +1,175 @@
+=begin
+ ==============================================================================
+
+ Custom Skill/Item Repeat v1.00
+ by AdiktuzMiko
+ --- Date Created: 10/20/2014
+ --- Last Date Updated: 10/20/2014
+ --- Level: Easy
+
+ ==============================================================================
+ Overview
+ ==============================================================================
+
+ This script provides the ability to run RGSS3 methods/formulas to determine
+ how many times the skill/item repeats. The script takes first the repeats
+ set in the skill tab, then adds any custom repeat you have set.
+ 
+ This can also be used to simply have more than 9 repeats.
+ 
+ ==============================================================================
+ Set-Up
+ ==============================================================================
+ 
+ Just put this script into a blank slot above main but below materials
+ (see compatibility section) and start tagging and making your own formulas
+ 
+ ==============================================================================
+ Tags
+ ==============================================================================
+ 
+ -------------------------------------------------------------------
+ For global repeat
+ -------------------------------------------------------------------
+ <start_custom_repeat_g>
+   formula
+ <end_custom_repeat_g>
+ 
+ -------------------------------------------------------------------
+ For target specific repeat
+ -------------------------------------------------------------------
+ <start_custom_repeat_s>
+   formula
+ <end_custom_repeat_s>
+
+ Use user to denote the user, item to denote the skill
+ If using the specific repeat, use target to denote the target
+ 
+ -------------------------------------------------------------------
+ For repeating animation
+ -------------------------------------------------------------------
+ 
+ <repeat_anim>
+ 
+ Example: If we want to hit 2 times if user's agi is above 100
+ 
+ <start_custom_repeat_s>
+   1 if user.agi >= 100
+ <end_custom_repeat_s>
+ 
+ We used 1 since we already have 1 repeat at the skill tab (which is the minimum)
+ 
+ We also put the number directly instead of putting return before it because
+ that causes the script to skip the next actions all together
+ 
+ ==============================================================================
+ Compatibility
+ ==============================================================================
+
+ This script overwrites Scene_Battle's use_item method and Scene_ItemBase's
+ use_item_on_actor method
+ 
+ ==============================================================================
+ Terms and Conditions
+ ==============================================================================
+
+ View it here: http://lescripts.wordpress.com/terms-and-conditions/
+ 
+ ==============================================================================
+  -----------------------------------------------------------------------------
+  Blesstama add-on: extra repeats/double repeats
+  -----------------------------------------------------------------------------
+  Actor/Class/Item/Skill/Weapon/Enemy/State Notetags:
+  These notetags go in the X notebox in the database.
+  -----------------------------------------------------------------------------
+  <repeat double>
+  <repeat damage: +-x>
+  <repeat heal: +-x>
+  <repeat drain: +-x>
+  <repeat global: +-x>
+
+  <repeat double> means that any actions you/enemy do is doubled
+  2 hits? 4. 8? 16. 9? 18	
+
+  <repeat damage: +-x> means that any damage skills
+  that deals...damage to hp and mp will be repeated +x or -x times
+
+  <repeat heal: +-x> means that any heal skills
+  that recover hp and mp will be repeated +x or -x times
+
+  repeat drain: +-x> means that any drain skills
+  that...drain hp and mp will be repeated +x or -x times
+  
+  <repeat global: +-x> means that any skills
+  will be repeated +x or -x times, no matter type (even none)
+=end
+
+# ==============================================================================
+# DO NOT EDIT BELOW THIS LINE
+# ==============================================================================
+
+module ADIK
+  module CUSTOM_REPEAT
+    GLOBAL = /<start_custom_repeat_g>(.*)<end_custom_repeat_g>/m
+    SPECIFIC = /<start_custom_repeat_s>(.*)<end_custom_repeat_s>/m
+    REPEAT_ANIMATION = /<repeat_anim>/
+  end
+end
+
+
+class RPG::UsableItem
+  
+  def custom_repeat_global
+    return $1.to_s if self.note =~ ADIK::CUSTOM_REPEAT::GLOBAL
+    return "0"
+  end
+  
+  def custom_repeat
+    return $1.to_s if self.note =~ ADIK::CUSTOM_REPEAT::SPECIFIC
+    return "0"
+  end
+  
+  def repeat_anim
+    return self.note =~ ADIK::CUSTOM_REPEAT::REPEAT_ANIMATION
+  end
+  
+end
+
+class Scene_Battle
+  
+  def use_item
+    item = @subject.current_action.item
+    nt = @subject.get_all_notes
+    tag = [/<repeat double>/, /<repeat damage:[ ]([\+\-]\d+)>/, /<repeat heal:[ ]([\+\-]\d+)>/, /<repeat drain:[ ]([\+\-]\d+)>/, /<repeat global:[ ]([\+\-]\d+)>/]
+    tot = [false, 0, 0, 0, 0]
+    tag.each_with_index do |match, f|
+      ta = @subject.get_all_notes.scan(match)
+      tot[0] = true if ta && f == 0
+      tot[f] = ta.first[0].to_i if ta && f != 0
+    end
+    puts "tot: #{tot}"
+    @log_window.display_use_item(@subject, item)
+    @subject.use_item(item)
+    refresh_status
+    targets = @subject.current_action.make_targets.compact
+    show_animation(targets, item.animation_id) unless item.repeat_anim
+    user = @subject
+    repeats = item.repeats
+    repeats += eval(item.custom_repeat_global)
+    targets.each do |target|
+      specific_repeat = repeats
+      specific_repeat += eval(item.custom_repeat)
+      specific_repeat += tot[1] if tot[1] > 0 && item.damage.type.between?(1,2)
+      specific_repeat += tot[2] if tot[2] > 0 && item.damage.type.between?(3,4)
+      specific_repeat += tot[3] if tot[3] > 0 && item.damage.type.between?(5,6)
+      specific_repeat += 1 if nt.include?("<Item Freak>") && item.is_a?(RPG:Item)
+      specific_repeat *= 2 if tot[0]
+      targs = [target]
+      specific_repeat.times do
+        show_animation(targs, item.animation_id) if item.repeat_anim
+        invoke_item(target, item)
+      end
+    end
+  end
+
+end
