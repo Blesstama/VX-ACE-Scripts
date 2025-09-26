@@ -17,6 +17,9 @@
 # y - initial x position for afterimage
 # x1 - how far away in X coordinate each afteimage will be from base sprite
 # y1 - how far away in Y coordinate each afteimage will be from base sprite
+#
+# if errors happening try grab scriptlet cus it have important code lines
+# i didn't insert here for sake of using less space
 class Sprite_Battler < Sprite_Base
   attr_accessor :afterimage_sprite
   #--------------------------------------------------------------------------
