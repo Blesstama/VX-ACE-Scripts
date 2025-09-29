@@ -41,7 +41,7 @@ module BLESS
       STATE_AC_THRESHOLD = 100
       STATE_DG_ID = 20
       STATE_AC_ID = 21
-      WORK = 999
+      WORK = 22
     end
   end
 end
@@ -145,14 +145,14 @@ class Game_Actor < Game_Battler
 
   # What does item/skills use when notetag (and adding new state upon going over 100)
   def add_dg_effect(value)
-    return if $game_switches[BLESS::DGAC::CUSTOM::WAIT]
+    return if !$game_switches[BLESS::DGAC::CUSTOM::WORK]
     @dg += (value + self.dgitem)
     puts "dg: #{@dg}"
     add_state(BLESS::DGAC::CUSTOM::STATE_DG_ID) if @dg >= BLESS::DGAC::CUSTOM::STATE_DG_THRESHOLD + self.dgmax
   end
 
   def add_ac_effect(value)
-    return if $game_switches[BLESS::DGAC::CUSTOM::WAIT]
+    return if !$game_switches[BLESS::DGAC::CUSTOM::WORK]
     @ac += (value + self.acitem)
     puts "ac: #{@dg}"
     add_state(BLESS::DGAC::CUSTOM::STATE_AC_ID) if @ac >= BLESS::DGAC::CUSTOM::STATE_AC_THRESHOLD + self.acmax
@@ -301,7 +301,7 @@ class Game_Actor < Game_Battler
   
   def on_turn_end
     super
-    return if $game_switches[BLESS::DGAC::CUSTOM::WAIT]
+    return if !$game_switches[BLESS::DGAC::CUSTOM::WORK]
     decrease1 = self.dg - (10 - self.dgturn)
     decrease2 = self.ac - (10 - self.acturn)
     @dg = [decrease1, 0].max
@@ -331,8 +331,10 @@ class Scene_Battle < Scene_Base
 
   # Increase DG/AC before damage and only by actor
   def apply_item_effects(user, item)
+    
     user.apply_dg_effect(item) if user.actor? == true
     user.apply_ac_effect(item) if user.actor? == true
+    
     original_apply_item_effects(user, item)
   end
 end
@@ -378,7 +380,7 @@ class Window_BattleStatus < Window_Selectable
   end
 
   def process_handling
-    if Input.press?(:CTRL) && $game_switches[BLESS::DGAC::CUSTOM::WAIT]
+    if Input.press?(:CTRL) && $game_switches[BLESS::DGAC::CUSTOM::WORK]
       if @ctrl_pressed && Time.now - @last_ctrl_time >= 1
         @dg_state = !@dg_state
         draw_all_items
