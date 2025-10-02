@@ -141,7 +141,6 @@ class RPG::UsableItem
 end
 
 class Scene_Battle
-  
   def use_item
     item = @subject.current_action.item
     if item.id == 999 && @subject.actor?
@@ -150,21 +149,24 @@ class Scene_Battle
       return
     end
     nt = @subject.get_all_notes
+    skill_repeats = {}; item_repeats = {}
     tag = [/<repeat double>/, /<repeat damage:[ ]([\+\-]\d+)>/, /<repeat heal:[ ]([\+\-]\d+)>/, /<repeat drain:[ ]([\+\-]\d+)>/, /<repeat global:[ ]([\+\-]\d+)>/]
-    tag << /<repeat skill:\s*(\d+),\s*([+\-]\d+)>/
-    tag << /<repeat item:\s*(\d+),\s*([+\-]\d+)>/
-    puts "tag: #{tag}"
-    tot = [false, 0, 0, 0, 0, 0, 0]
+    skill_tag = /<repeat skill:\s*(\d+),\s*([+\-]\d+)>/
+    item_tag = /<repeat item:\s*(\d+),\s*([+\-]\d+)>/
+    tot = [false, 0, 0, 0, 0]
+    tot = [false, 0, 0, 0, 0]
     tag.each_with_index do |match, f|
       ta = @subject.get_all_notes.scan(match)
-      puts "ta: #{ta}"
       next if ta.empty?
       tot[0] = true if ta && f == 0
-      tot[f] = ta.first[0].to_i if ta && f.between?(1,4)
-      tot[f] = ta.first[1].to_i if ta && f == 5 && item.is_a?(RPG::Skill)
-      tot[f] = ta.first[1].to_i if ta && f == 6 && item.is_a?(RPG::Item)
+      tot[f] += ta.map { |element| element[0].to_i }.reduce(0, :+) if ta && f.between?(1,4)
     end
-    puts "tot: #{tot}"
+    @subject.get_all_notes.scan(skill_tag) do |skill_id, repeat|
+      skill_repeats[skill_id.to_i] = (skill_repeats[skill_id.to_i] || 0) + repeat.to_i
+    end
+    @subject.get_all_notes.scan(item_tag) do |item_id, repeat|
+      item_repeats[item_id.to_i] = (item_repeats[item_id.to_i] || 0) + repeat.to_i
+    end
     @log_window.display_use_item(@subject, item)
     @subject.use_item(item)
     refresh_status
@@ -172,19 +174,20 @@ class Scene_Battle
     show_animation(targets, item.animation_id) unless item.repeat_anim
     user = @subject
     repeats = item.repeats
-    repeats += eval(item.custom_repeat_global)
+    repeats += tot[4]
     targets.each do |target|
       specific_repeat = repeats
       specific_repeat += eval(item.custom_repeat)
       specific_repeat += tot[1] if item.damage.type.between?(1,2)
       specific_repeat += tot[2] if item.damage.type.between?(3,4)
       specific_repeat += tot[3] if item.damage.type.between?(5,6)
-      specific_repeat += tot[4]
-      specific_repeat += tot[5]
-      specific_repeat += tot[6]
+      if item.is_a?(RPG::Skill)
+        specific_repeat += skill_repeats[item.id] || 0
+      elsif item.is_a?(RPG::Item)
+        specific_repeat += item_repeats[item.id] || 0
+      end
       specific_repeat += 1 if nt.include?("<Item Freak>") && item.is_a?(RPG::Item)
       specific_repeat *= 2 if tot[0]
-      puts "total repeats: #{specific_repeat}"
       targs = [target]
       specific_repeat.times do
         show_animation(targs, item.animation_id) if item.repeat_anim
@@ -192,5 +195,5 @@ class Scene_Battle
       end
     end
   end
-
 end
+
