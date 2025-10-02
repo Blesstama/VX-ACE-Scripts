@@ -159,7 +159,7 @@ class Scene_Battle
       ta = @subject.get_all_notes.scan(match)
       next if ta.empty?
       tot[0] = true if ta && f == 0
-      tot[f] += ta.map { |element| element[0].to_i }.reduce(0, :+) if ta && f.between?(1,4)
+      tot[f] += ta.map { |repeat| repeat[0].to_i }.reduce(0, :+) if ta && f.between?(1,4)
     end
     @subject.get_all_notes.scan(skill_tag) do |skill_id, repeat|
       skill_repeats[skill_id.to_i] = (skill_repeats[skill_id.to_i] || 0) + repeat.to_i
