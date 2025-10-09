@@ -143,11 +143,6 @@ end
 class Scene_Battle
   def use_item
     item = @subject.current_action.item
-    if item.id == 999 && @subject.actor?
-      @subject.animation_id = item.animation_id
-      $game_party.clear_actions
-      return
-    end
     nt = @subject.get_all_notes
     skill_repeats = {}; item_repeats = {}
     tag = [/<repeat double>/, /<repeat damage:[ ]([\+\-]\d+)>/, /<repeat heal:[ ]([\+\-]\d+)>/, /<repeat drain:[ ]([\+\-]\d+)>/, /<repeat global:[ ]([\+\-]\d+)>/]
@@ -186,7 +181,6 @@ class Scene_Battle
       elsif item.is_a?(RPG::Item)
         specific_repeat += item_repeats[item.id] || 0
       end
-      specific_repeat += 1 if nt.include?("<Item Freak>") && item.is_a?(RPG::Item)
       specific_repeat *= 2 if tot[0]
       targs = [target]
       specific_repeat.times do
