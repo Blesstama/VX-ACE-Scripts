@@ -20,6 +20,14 @@
 #     t - game troop
 #     v - game variables (v[10] for variable 10)
 #     s - game switches (s[15] for switch[15])
+# <before before eval>
+#  v[1] = 0
+# </before before eval>
+# using this note makes anything inside it trigger command
+# key difference between this and previous 2 variations is:
+# 1)it rans only once even if item have over 100 repeats
+# 2)previous variables saves but you can't interact with target aka self/b
+#
 #
 # le examples:
 # <Before Eval>
@@ -49,9 +57,34 @@
 # </Before Eval>
 # if currently used item has more or equal 3, give 2 tp per it, else 5
 # -----------------------------------------------------------------------------
+class Scene_Battle < Scene_Base
+  alias :pre_item :use_item
+  def use_item
+    item = @subject.current_action.item
+    pre_skill_eval(@subject, item)
+    pre_item
+  end
+  
+  def pre_skill_eval(user, item)
+    regexp = /<Before Before Eval>(.*?)<\/Before Before Eval>/im
+    item.note.scan(regexp).each do |code|
+      eval_command(user, item, code.first)
+    end
+    user.get_all_notes.scan(regexp).each do |code|
+      eval_command(user, item, code.first)
+    end
+  end
+  
+  def eval_command(user, item, formula, b=self, p=$game_party, s=$game_switches, t=$game_troop, v=$game_variables)
+    eval(formula)
+  rescue Exception => e
+    puts "Error in Before/After Eval: #{e.message}"
+  end
+end
+
+
 class Game_Battler < Game_BattlerBase
   alias itemsapplied item_apply
-  alias damageapplied execute_damage
   
   def item_apply(user, item)
     preitemapply(user, item)
@@ -81,7 +114,6 @@ class Game_Battler < Game_BattlerBase
   
 
   def eval_command(user, item, formula, b=self, p=$game_party, s=$game_switches, t=$game_troop, v=$game_variables)
-    #puts "Evaluating Command: #{formula}"
     eval(formula)
   rescue Exception => e
     puts "Error in Before/After Eval: #{e.message}"
