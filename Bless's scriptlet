@@ -34,6 +34,7 @@ end
 class Scene_Battle < Scene_Base 
   attr_accessor:log_window
 end
+
 class Scene_Map < Scene_Base 
   attr_accessor:log_window
 end
@@ -145,7 +146,8 @@ class Game_Interpreter
     while next_event_code == 655
       @index += 1
       script += @list[@index].parameters[0] + "\n"
-      eval(script)
+    end
+    eval(script)
     rescue Exception => error
       puts "Map id: #{map_id}"
       puts "Event id: #{event_id}"
@@ -193,6 +195,7 @@ class Game_Enemy < Game_Battler
       action_list.reject! { |skill| skill.rating < 9 }
       puts "list: #{action_list}"
       return action_list.sample
+    end
     return nil if sum <= 0
     value = rand(sum)
     action_list.each do |action|
@@ -208,5 +211,4 @@ class Scene_Battle < Scene_Base
   def check_substitute(target, item)
     target.hp < target.mhp / 2 && (!item || !item.certain?)
   end
-end
 end
