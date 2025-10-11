@@ -1,122 +1,212 @@
-#==============================================================================
-# ▼ Blesstama - Before/After Evals v0.01
-# -----------------------------------------------------------------------------
-# Actor/Class/Item/Skill/Weapon/Enemy/State Notetags:
-# These notetags go in the X notebox in the database.
-# -----------------------------------------------------------------------------
-# <Before Eval>
-#    COMMAND
-# </Before Eval>
-# <After Eval>
-#    COMMAND
-# </After Eval>
-# using this note makes anything inside it trigger command
-# after item has did own thing where the COMMAND is any valid ruby thing.
-# You can use the following variables in your command:
-#     user - the current enemy/actor
-#     self/b - target against who was used skill/item
-#     item - skill/item that was used
-#     p - game party
-#     t - game troop
-#     v - game variables (v[10] for variable 10)
-#     s - game switches (s[15] for switch[15])
-# <before before eval>
-#  v[1] = 0
-# </before before eval>
-# using this note makes anything inside it trigger command
-# key difference between this and previous 2 variations is:
-# 1)it rans only once even if item have over 100 repeats
-# 2)previous variables saves but you can't interact with target aka self/b
-#
-#
-# le examples:
-# <Before Eval>
-# return if !self.result.hit?
-# user.hp += 100
-# </Before Eval>
-
-# user of skill will restores 100 hp if his action was successful
-#(no evasion, no misses and no counters)
-
-# <After Eval>
-# if user != self
-#   drain = self.mp >= 100 ? 100 : self.mp
-#   user.mp += drain
-#   self.mp -= 100
-# end
-# </After Eval>
-#
-# user of skill will drain 100 mp from target as long as he has on
-#(if less than 100 mp then drain what left)
-# <Before Eval>
-# if item.repeats >= 3
-#  user.tp += 2
-# else
-#  user.tp += 5
-# end
-# </Before Eval>
-# if currently used item has more or equal 3, give 2 tp per it, else 5
-# -----------------------------------------------------------------------------
-class Scene_Battle < Scene_Base
-  alias :pre_item :use_item
-  def use_item
-    item = @subject.current_action.item
-    pre_skill_eval(@subject, item)
-    pre_item
+EVERYTHING BELOW THIS IS FREE TO ADD IT JUST GIVES NEW FEATURES/REWRITES FOR GOOD
+#--------------------------------------------------------------------------
+# * Ability to pick all notes from actor and enemy (mandatory for some of my scripts)
+#--------------------------------------------------------------------------
+class Game_Enemy < Game_Battler
+  def note
+    enemy.note.to_s
   end
-  
-  def pre_skill_eval(user, item)
-    regexp = /<Before Before Eval>(.*?)<\/Before Before Eval>/im
-    item.note.scan(regexp).each do |code|
-      eval_command(user, item, code.first)
-    end
-    user.get_all_notes.scan(regexp).each do |code|
-      eval_command(user, item, code.first)
-    end
-  end
-  
-  def eval_command(user, item, formula, b=self, p=$game_party, s=$game_switches, t=$game_troop, v=$game_variables)
-    eval(formula)
-  rescue Exception => e
-    puts "Error in Before/After Eval: #{e.message}"
+  def get_all_notes(*args)
+    notes = ""
+    notes += note unless args.include?(:self)
+    states.compact.each { |state| notes += state.note } unless args.include?(:state)
+    notes
   end
 end
 
-
-class Game_Battler < Game_BattlerBase
-  alias itemsapplied item_apply
-  
-  def item_apply(user, item)
-    preitemapply(user, item)
-    itemsapplied(user, item)
-    postitemapply(user, item)
-  end
-  
-  def preitemapply(user, item)
-    regexp = /<Before Eval>(.*?)<\/Before Eval>/im
-    item.note.scan(regexp).each do |code|
-      eval_command(user, item, code.first)
-    end
-    user.get_all_notes.scan(regexp).each do |code|
-      eval_command(user, item, code.first)
-    end
-  end
-  
-  def postitemapply(user, item)
-    regexp = /<After Eval>(.*?)<\/After Eval>/im
-    item.note.scan(regexp).each do |code|
-      eval_command(user, item, code.first)
-    end
-    user.get_all_notes.scan(regexp).each do |code|
-      eval_command(user, item, code.first)
-    end
-  end
-  
-
-  def eval_command(user, item, formula, b=self, p=$game_party, s=$game_switches, t=$game_troop, v=$game_variables)
-    eval(formula)
-  rescue Exception => e
-    puts "Error in Before/After Eval: #{e.message}"
+class Game_Actor < Game_Battler
+  def note
+    actor.note.to_s
   end
 
+  def get_all_notes(*args)
+    notes = ""
+    notes += note unless args.include?(:self)
+    notes += self.class.note unless args.include?(:class)
+    equips.compact.each { |equip| notes += equip.note } unless args.include?(:equip)
+    states.compact.each { |state| notes += state.note } unless args.include?(:state)
+    notes
+  end
+end
+#--------------------------------------------------------------------------
+# * Ability to do log messages in battle/map (also mandatory for few)
+#--------------------------------------------------------------------------
+class Scene_Battle < Scene_Base 
+  attr_accessor:log_window
+end
+class Scene_Map < Scene_Base 
+  attr_accessor:log_window
+end
+#--------------------------------------------------------------------------
+# * Code stuff
+#--------------------------------------------------------------------------
+class Object
+  def rand_between(min, max)
+    min + rand(max - min + 1)
+  end
+end
+#--------------------------------------------------------------------------
+# * Buffs Add-On
+#--------------------------------------------------------------------------
+class Game_Battler < Game_BattlerBase	
+  #--------------------------------------------------------------------------
+  # * Check if battler has any buffed parameters
+  #--------------------------------------------------------------------------
+  def buffed?
+    @buffs.any? { |param| param > 0 }
+  end
+  #--------------------------------------------------------------------------
+  # * Check if battler has any debuffed parameters
+  #--------------------------------------------------------------------------
+  def debuffed?
+    @buffs.any? { |param| param < 0 }
+  end
+  #--------------------------------------------------------------------------
+  # * Add Buff (Stage Based)
+  #--------------------------------------------------------------------------
+  def add_buffs(param_id, turns, size)
+    return unless alive?
+    @buffs[param_id] += size unless buff_max?(param_id)
+    erase_buff(param_id) if debuff?(param_id)
+    overwrite_buff_turns(param_id, turns)
+    @result.added_buffs.push(param_id).uniq!
+    refresh
+  end
+  #--------------------------------------------------------------------------
+  # * Add Debuff (Stage Based)
+  #--------------------------------------------------------------------------
+  def add_debuffs(param_id, turns, size)
+    return unless alive?
+    size = 1 if size.is_a? == true
+    @buffs[param_id] -= size unless debuff_max?(param_id)
+    erase_buff(param_id) if buff?(param_id)
+    overwrite_buff_turns(param_id, turns)
+    @result.added_debuffs.push(param_id).uniq!
+    refresh
+  end
+end
+#--------------------------------------------------------------------------
+# * Manipulations with enemy
+#--------------------------------------------------------------------------
+class Game_Enemy < Game_Battler
+  #--------------------------------------------------------------------------
+  # * Change image he use (use name from Battlers folder)
+  #--------------------------------------------------------------------------
+  def swapimage(name)
+    @battler_name = name
+  end
+  #--------------------------------------------------------------------------
+  # * Change name
+  #--------------------------------------------------------------------------
+  def swapname(name)
+    @original_name = name
+  end
+  #--------------------------------------------------------------------------
+  # * Change hue
+  #--------------------------------------------------------------------------
+  def swaphue(number)
+    @battler_hue = number
+  end
+end
+#--------------------------------------------------------------------------
+# * Allows function Change Battleback work in battle
+#--------------------------------------------------------------------------
+class Game_Interpreter
+  alias_method :command_283_orig_kal, :command_283
+  def command_283
+	 command_283_orig_kal
+	 if SceneManager.scene.is_a?(Scene_Battle)
+	   scene = SceneManager.scene
+	   scene.spriteset.change_image(@params[0], @params[1])
+	 end
+  end
+end
+class Scene_Battle
+  attr_reader :spriteset
+end
+class Spriteset_Battle
+  def change_image(name, name2)
+    @back1_sprite.bitmap = Bitmap.new("Graphics/Battlebacks1/#{name}.png")
+    @back2_sprite.bitmap = Bitmap.new("Graphics/Battlebacks1/#{name2}.png")
+    @back1_sprite.z = 0
+    center_sprite(@back1_sprite)
+    update
+  end
+end
+#--------------------------------------------------------------------------
+# * Overwrites script call command to not crash game + give small hint on where it died
+#--------------------------------------------------------------------------
+class Game_Interpreter
+  def command_355
+    event_id = @event_id
+    map_id = $game_map.map_id unless $game_map.map_id == nil
+    common_event_id = $game_temp.common_event_id
+    script = @list[@index].parameters[0] + "\n"
+    while next_event_code == 655
+      @index += 1
+      script += @list[@index].parameters[0] + "\n"
+      eval(script)
+    rescue Exception => error
+      puts "Map id: #{map_id}"
+      puts "Event id: #{event_id}"
+      puts "Common event id: #{common_event_id}"
+      puts "Script call: #{@list[@index].parameters[0]}"
+      puts "What happened: #{error}"
+  end
+end
+EVERYTHING BELOW THIS IS OVERWRITES/DEBATABLE CHANGES
+#--------------------------------------------------------------------------
+# * Atk Speed Fix (all skills have atk speed bonus and not just skill 1)
+#--------------------------------------------------------------------------
+class Game_Action
+  def speed
+    speed = subject.agi + rand(5 + subject.agi / 4)
+    speed += item.speed if item
+    speed += subject.atk_speed if item.is_a?(RPG::Skill)
+    speed
+  end
+end	
+#--------------------------------------------------------------------------
+# * Skill Rating alterating by accepting all ratings (no 100% ones)
+#--------------------------------------------------------------------------
+class Game_Enemy < Game_Battler
+  def make_actions
+    super
+    return if @actions.empty?
+    action_list = enemy.actions.select {|a| action_valid?(a) }
+    return if action_list.empty?
+    rating_max = action_list.collect {|a| a.rating }.max
+    #rating_zero = rating_max - 3 (old nae nae way)
+    rating_zero = -1
+    action_list.reject! {|a| a.rating <= rating_zero }
+    @actions.each do |action|
+      action.set_enemy_action(select_enemy_action(action_list, rating_zero))
+    end
+  end
+  #--------------------------------------------------------------------------
+  # Alters enemy select to make that it will 100% use skills with rating 10 (for charge attacks)
+  #--------------------------------------------------------------------------
+  def select_enemy_action(action_list, rating_zero)
+    sum = action_list.inject(0) {|r, a| r += a.rating - rating_zero }
+    max = action_list.collect {|a| a.rating }.max
+    if max >= 10
+      action_list.reject! { |skill| skill.rating < 9 }
+      puts "list: #{action_list}"
+      return action_list.sample
+    return nil if sum <= 0
+    value = rand(sum)
+    action_list.each do |action|
+      return action if value < action.rating - rating_zero
+      value -= action.rating - rating_zero
+    end
+  end	
+end
+#--------------------------------------------------------------------------
+# * Substitute Buff
+#--------------------------------------------------------------------------
+class Scene_Battle < Scene_Base
+  def check_substitute(target, item)
+    target.hp < target.mhp / 2 && (!item || !item.certain?)
+  end
+end
 end
