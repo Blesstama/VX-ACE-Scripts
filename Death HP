@@ -1,0 +1,104 @@
+#==============================================================================
+# 
+# ▼ Blesstama - Death HP
+# -- Last Updated: 08.04.2024
+# -- Level: Easy
+# -- Requires: n/a
+# -----------------------------------------------------------------------------
+# Actor/Class/Item/Skill/Weapon/Enemy/State Notetags:
+# These notetags go in the X notebox in the database.
+# -----------------------------------------------------------------------------
+# <Death hp: +-x>
+# this note changes HP required for actor or enemy to die by +x or +y number.
+# <Death hp>
+# FORMULA
+# </Death hp>
+# this note changes HP required for actor or enemy by formula.
+# FORMULA is any valid ruby formula that returns a number.
+# You can use the following variables in your formula:
+#     user - the current enemy/actor
+#     p - game party
+#     t - game troop
+#     v - game variables
+#     s - game switches
+#==============================================================================
+# ▼ Editting anything past this point may potentially result in causing
+# computer damage, incontinence, explosion of user's head, coma, death, and/or
+# halitosis so edit at your own risk.
+#==============================================================================
+class Game_BattlerBase
+  attr_accessor :ded_hp
+  
+  alias base_iniz initialize
+  def initialize
+    base_iniz
+    @ded_hp = 0
+  end
+  def ded_hp
+    @ded_hp
+  end
+  
+  def refresh
+    state_resist_set.each {|state_id| erase_state(state_id) }
+    @hp = [[@hp, mhp].min, @ded_hp].max
+    @mp = [[@mp, mmp].min, @ded_hp].max
+    @hp <= @ded_hp ? add_state(death_state_id) : remove_state(death_state_id)
+  end
+end
+class Game_Battler < Game_BattlerBase
+  #--------------------------------------------------------------------------
+  # * Knock Out
+  #--------------------------------------------------------------------------
+  def die
+    @hp = @ded_hp
+    clear_states
+    clear_buffs
+  end
+  
+  #--------------------------------------------------------------------------
+  # * Revive from Knock Out
+  #--------------------------------------------------------------------------
+  def revive
+    if @hp == @ded_hp
+      @hp = [@mhp, 1].min
+    end
+  end
+end
+class Game_Actor < Game_Battler
+  def ded_hp
+    tot = 0
+    notes = get_all_notes
+    notes.scan(/<death hp:\s*([+-]?\d+)>/) { tot += $1.to_i }
+    notes.scan(/<death hp>\s*(.*?)\s*<\/death hp>/m) { tot += eval_Death(self, $1) }
+    @ded_hp = tot
+  end
+  def eval_Death(user, formula, p=$game_party, s=$game_switches, t=$game_troop, v=$game_variables)
+    eval(formula)
+  rescue Exception => e
+    puts "Error in Before/After Eval: #{e.message}"
+    0
+  end
+end
+class Game_Enemy < Game_Battler
+  def ded_hp
+    tot = 0
+    notes = enemy_notes
+    notes.scan(/<death hp:\s*([+-]?\d+)>/) { tot += $1.to_i }
+    notes.scan(/<death hp>\s*(.*?)\s*<\/death hp>/m) { tot = eval_Death(self, nil, $1) }
+    @ded_hp = tot
+  end
+  
+  def eval_Death(user, item, formula, b=self, p=$game_party, s=$game_switches, t=$game_troop, v=$game_variables)
+    eval(formula)
+  rescue Exception => e
+    puts "Error in Before/After Eval: #{e.message}"
+    0
+  end
+end
+class Window_Base < Window
+  alias base_hp_color hp_color
+  def hp_color(actor)
+    return knockout_color if actor.hp == actor.ded_hp
+    base_hp_color(actor)
+  end
+end
