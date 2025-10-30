@@ -82,7 +82,7 @@ end
 class Game_Enemy < Game_Battler
   def ded_hp
     tot = 0
-    notes = enemy_notes
+    notes = enemy.note
     notes.scan(/<death hp:\s*([+-]?\d+)>/) { tot += $1.to_i }
     notes.scan(/<death hp>\s*(.*?)\s*<\/death hp>/m) { tot = eval_Death(self, nil, $1) }
     @ded_hp = tot
