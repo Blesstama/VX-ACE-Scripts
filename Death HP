@@ -1,18 +1,14 @@
 #==============================================================================
-# 
 # ▼ Blesstama - Death HP
-# -- Last Updated: 08.04.2024
-# -- Level: Easy
-# -- Requires: n/a
 # -----------------------------------------------------------------------------
 # Actor/Class/Item/Skill/Weapon/Enemy/State Notetags:
 # These notetags go in the X notebox in the database.
 # -----------------------------------------------------------------------------
-# <Death hp: +-x>
+# <death hp: +-x>
 # this note changes HP required for actor or enemy to die by +x or +y number.
-# <Death hp>
+# <death hp>
 # FORMULA
-# </Death hp>
+# </death hp>
 # this note changes HP required for actor or enemy by formula.
 # FORMULA is any valid ruby formula that returns a number.
 # You can use the following variables in your formula:
@@ -40,9 +36,9 @@ class Game_BattlerBase
   
   def refresh
     state_resist_set.each {|state_id| erase_state(state_id) }
-    @hp = [[@hp, mhp].min, @ded_hp].max
-    @mp = [[@mp, mmp].min, @ded_hp].max
-    @hp <= @ded_hp ? add_state(death_state_id) : remove_state(death_state_id)
+    @hp = [[@hp, mhp].min, ded_hp].max
+    @mp = [[@mp, mmp].min, ded_hp].max
+    @hp <= ded_hp ? add_state(death_state_id) : remove_state(death_state_id)
   end
 end
 class Game_Battler < Game_BattlerBase
@@ -50,7 +46,7 @@ class Game_Battler < Game_BattlerBase
   # * Knock Out
   #--------------------------------------------------------------------------
   def die
-    @hp = @ded_hp
+    @hp = ded_hp
     clear_states
     clear_buffs
   end
@@ -70,7 +66,7 @@ class Game_Actor < Game_Battler
     notes = get_all_notes
     notes.scan(/<death hp:\s*([+-]?\d+)>/) { tot += $1.to_i }
     notes.scan(/<death hp>\s*(.*?)\s*<\/death hp>/m) { tot += eval_Death(self, $1) }
-    @ded_hp = tot
+    @ded_hp = -tot
   end
   def eval_Death(user, formula, p=$game_party, s=$game_switches, t=$game_troop, v=$game_variables)
     eval(formula)
@@ -83,9 +79,9 @@ class Game_Enemy < Game_Battler
   def ded_hp
     tot = 0
     notes = enemy.note
-    notes.scan(/<death hp:\s*([+-]?\d+)>/) { tot += $1.to_i }
+    notes.scan(/<death hp:\s*([+-]?\d+)>/) { tot += $1 }
     notes.scan(/<death hp>\s*(.*?)\s*<\/death hp>/m) { tot = eval_Death(self, nil, $1) }
-    @ded_hp = tot
+    @ded_hp = -tot
   end
   
   def eval_Death(user, item, formula, b=self, p=$game_party, s=$game_switches, t=$game_troop, v=$game_variables)
@@ -93,6 +89,20 @@ class Game_Enemy < Game_Battler
   rescue Exception => e
     puts "Error in Before/After Eval: #{e.message}"
     0
+  end
+end
+class Game_ActionResult
+  #--------------------------------------------------------------------------
+  # * Create Damage
+  #--------------------------------------------------------------------------
+  def make_damage(value, item)
+    @critical = false if value.zero?
+    @hp_damage = value if item.damage.to_hp?
+    @mp_damage = value if item.damage.to_mp?
+    @mp_damage = [@battler.mp, @mp_damage].min
+    @mp_drain = @mp_damage if item.damage.drain?
+    @hp_drain = [@battler.hp, @hp_drain].min if @battler.hp > 0 && @hp_damage > 0
+    @success = true if item.damage.to_hp? || @mp_damage.nonzero?
   end
 end
 class Window_Base < Window
