@@ -1,0 +1,204 @@
+#==============================================================================
+# ▼ Blesstama - Limited Battle Items
+# -----------------------------------------------------------------------------
+# So you know how you can carry like 99 items and being able to consume all
+# of them in 1 battle? Well fuck that now you can make so upon switch you
+# have limited amout of items in battle while still carrying as much as you
+# will player allow.
+#(like you can carry 99 in inventory but use only 5 per battle).
+#==============================================================================
+# Script calls:
+# $game_party.extend_limit(x, y)
+# Makes so party can use item x by y more or less times.
+#
+# $game_party.set_limit(x, y)
+# makes so item x can be used only y amount of time in battle
+#
+# $game_party.reset_extra_limits(x) 
+# removes all altered changes by previous 2 script so you stucked with
+# variable one
+#
+# Keep in mind that if you use notetag from NOTE_REGEX script calls will
+# doesn't work at all on your x item.
+#
+#==============================================================================
+#==============================================================================
+# ▼ Editting anything past this point may potentially result in causing
+# computer damage, incontinence, explosion of user's head, coma, death, and/or
+# halitosis so edit at your own risk.
+#==============================================================================
+module BattleItemLimits
+  #turning this will make limit work
+  ITEM_SWITCH = 1 
+  #variable that alters max limit for every item
+  #(if lower than 0, returns normal item limit)
+  DEFAULT_BATTLE_LIMIT = 3 
+  #if item have note it overwrites it.
+  NOTE_REGEX = /<battle limit:\s*(\d+)>/i 
+  #message if you used item while you already reached limit
+  NOITEM_TEXT = "%s has used too much of %s!"
+  #how much message will be on screen (60 = 1 second)
+  NOITEM_WAIT = 120
+  #how low amount of items you need before indicating you gonna
+  #be lack of those soon (goes from 0 to 1 so 0.5 is 50% or less)
+  COLOR_TRIGGER = 0.5
+end
+
+class RPG::BaseItem
+  def battle_limit
+    return @battle_limit if @battle_limit
+    @battle_limit = $game_variables[BattleItemLimits::DEFAULT_BATTLE_LIMIT]
+    if self.note
+      match = self.note.match(BattleItemLimits::NOTE_REGEX)
+      @battle_limit = match[1].to_i if match
+    end
+    @battle_limit
+  end
+end
+
+class Game_Battler < Game_BattlerBase
+  alias item_consume_with_battle_limit consume_item
+  def consume_item(item)
+    if item.is_a?(RPG::Item) && !item.consumable
+      return
+    end
+    if $game_party.in_battle && item.is_a?(RPG::Item)
+      if $game_switches[BattleItemLimits::ITEM_SWITCH]
+        item_id = item.id
+        if item.note && item.note.match(BattleItemLimits::NOTE_REGEX)
+          total_limit = $data_items[item_id].battle_limit
+        else
+          extra_limit = $game_party.battle_item_extra_limits[item_id] || 0
+          total_limit = battle_limit + extra_limit
+        end
+        max_possessed = $game_party.max_item_number(item)
+        total_limit = [total_limit, max_possessed].min
+        $game_party.battle_item_usage[item_id] ||= 0
+        if $game_party.battle_item_usage[item_id] >= total_limit
+          return false
+        end
+        result = item_consume_with_battle_limit(item)
+        if result
+          $game_party.battle_item_usage[item_id] += 1
+        end
+        return result
+      else
+        item_consume_with_battle_limit(item)
+      end
+    else
+      item_consume_with_battle_limit(item)
+    end
+  end
+end
+
+class Game_Party < Game_Unit
+  attr_accessor :battle_item_usage
+  attr_accessor :battle_item_extra_limits
+  
+  alias init_with_battle_item_usage initialize
+  def initialize
+    init_with_battle_item_usage
+    @battle_item_usage = {}
+    @battle_item_extra_limits = {}
+  end
+  def on_battle_start
+    super
+    @battle_item_usage = {}
+  end
+  def battle_item_usage_count(item_id)
+    @battle_item_usage[item_id] || 0
+  end
+  def battle_item_remaining_uses(item_id)
+    return max_item_number($data_items[item_id]) unless $game_switches[BattleItemLimits::ITEM_SWITCH]
+    item = $data_items[item_id] 
+    if item.note && item.note.match(BattleItemLimits::NOTE_REGEX)
+      total_limit = item.battle_limit
+    else
+      extra_limit = @battle_item_extra_limits[item_id] || 0
+      total_limit = item.battle_limit + extra_limit
+    end
+    max_possessed = max_item_number(item)
+    total_limit = [total_limit, max_possessed].min
+    total_limit = max_item_number(item) if total_limit < 0
+    total_limit - battle_item_usage_count(item_id)
+  end
+  def battle_item_limit(item_id)
+    return max_item_number($data_items[item_id]) unless $game_switches[BattleItemLimits::ITEM_SWITCH]
+    item = $data_items[item_id]
+    if item.note && item.note.match(BattleItemLimits::NOTE_REGEX)
+      total_limit = item.battle_limit
+    else
+      extra_limit = @battle_item_extra_limits[item_id] || 0
+      total_limit = item.battle_limit + extra_limit
+    end
+    max_possessed = max_item_number(item)
+    total_limit = [total_limit, max_possessed].min
+    total_limit = max_item_number(item) if total_limit < 0
+    return total_limit
+  end
+  def extend_limit(item_id, extra_amount)
+    @battle_item_extra_limits[item_id] ||= 0
+    @battle_item_extra_limits[item_id] += extra_amount
+  end
+  def set_limit(item_id, total_amount)
+    base_limit = $data_items[item_id].battle_limit
+    @battle_item_extra_limits[item_id] = total_amount - base_limit
+  end
+  def reset_extra_limits(item_id = nil)
+    if item_id
+      @battle_item_extra_limits.delete(item_id)
+    else
+      @battle_item_extra_limits.clear
+    end
+  end
+end
+
+class Window_BattleItem < Window_ItemList
+  def include?(item)
+    return false if !$game_party.usable?(item)
+    if $game_switches[BattleItemLimits::ITEM_SWITCH]
+      return false if $game_party.battle_item_remaining_uses(item.id) == 0
+    end
+    return true
+  end
+  alias draw_item_number_with_battle_info draw_item_number
+  def draw_item_number(rect, item)
+    if $game_switches[BattleItemLimits::ITEM_SWITCH]
+      remaining = $game_party.battle_item_remaining_uses(item.id)
+      limit = $game_party.battle_item_limit(item.id)
+      contents.font.color = normal_color
+      if remaining <= (limit * BattleItemLimits::COLOR_TRIGGER)
+        contents.font.color = crisis_color
+      end
+      draw_text(rect, sprintf("%d/%d", remaining, limit), 2)
+    else
+      draw_item_number_with_battle_info(rect, item)
+    end
+  end
+end
+
+class Scene_Battle < Scene_Base
+  alias use_item_with_limit_message use_item
+  def use_item
+    item = @subject.current_action.item
+    if item.is_a?(RPG::Item) && $game_switches[BattleItemLimits::ITEM_SWITCH]
+      item_id = item.id
+      if item.note && item.note.match(BattleItemLimits::NOTE_REGEX)
+        total_limit = $data_items[item_id].battle_limit
+      else
+        extra_limit = $game_party.battle_item_extra_limits[item_id] || 0
+        total_limit = item.battle_limit + extra_limit
+      end
+      max_possessed = $game_party.max_item_number(item)
+      total_limit = [total_limit, max_possessed].min
+      if $game_party.battle_item_usage_count(item_id) >= total_limit
+        text = sprintf(BattleItemLimits::NOITEM_TEXT, @subject.name, item.name)
+        @log_window.add_text(text)
+        wait(BattleItemLimits::NOITEM_WAIT)
+        @log_window.clear
+        return
+      end
+    end
+    use_item_with_limit_message
+  end
+end
