@@ -18,7 +18,7 @@
 # removes all altered changes by previous 2 script so you stucked with
 # variable one
 #
-# Keep in mind that if you use notetag from NOTE_REGEX script calls will
+# Keep in mind that if you use notetag from NOTE_REGEX script call
 # doesn't work at all on your x item.
 #
 #==============================================================================
