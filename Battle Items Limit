@@ -7,6 +7,10 @@
 # will player allow.
 #(like you can carry 99 in inventory but use only 5 per battle).
 #==============================================================================
+# Item Notes:
+# <battle limit: x>
+# this means you can use only x amount of this item per battle
+#==============================================================================
 # Script calls:
 # $game_party.extend_limit(x, y)
 # Makes so party can use item x by y more or less times.
