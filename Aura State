@@ -1,0 +1,55 @@
+#==============================================================================
+# ▼ Blesstama - Aura State v.1
+# -----------------------------------------------------------------------------
+# Actor/Class/Item/Skill/Weapon/Enemy/State Notetags:
+# These notetags go in the X notebox in the database.
+# -----------------------------------------------------------------------------
+# if actor or enemy has any of these notes state is shared to everyone for:
+# <team aura: 10> - State 10 for player team
+# <enemy aura: 10> - State 10 for enemy team
+# <global aura: 10> - State 10 for everyone in battle
+# keep in mind you can do stuff like 10, 11, 12, 13 so several states in 1 note
+# also yes aura works only in battle
+# also yes it is that small
+# -----------------------------------------------------------------------------
+class Game_BattlerBase
+  alias base_states states
+  def states 
+    base_state_ids = base_states.map { |state| state.is_a?(RPG::State) ? state.id : state }
+    all_state_ids = (base_state_ids + aura_states).uniq
+    aura_states.each do |state_id|
+      @state_turns[state_id] = -1 if @state_turns
+    end
+    all_state_ids.map { |id| $data_states[id] }.compact
+    rescue
+      aura_state_states
+  end
+  def aura_states
+    return [] if dead?
+    states = []
+    everyone = []
+    if $game_party.in_battle
+      everyone += $game_party.members
+      everyone += $game_troop.members 
+    end
+    everyone.each do |battler|
+      next if battler.dead?
+      nt = battler.get_all_notes(:state)
+      team_match = nt.match(/<team aura:\s*([\d,\s]+)>/)
+      if team_match && self.actor? == battler.actor?
+        states += team_match[1].scan(/\d+/).map(&:to_i)
+      end
+      enemy_match = nt.match(/<enemy aura:\s*([\d,\s]+)>/)
+      if enemy_match && self.actor? != battler.actor?
+        states += enemy_match[1].scan(/\d+/).map(&:to_i)
+      end
+      global_match = nt.match(/<global aura:\s*([\d,\s]+)>/)
+      if global_match
+        states += global_match[1].scan(/\d+/).map(&:to_i)
+      end
+    end
+    states.uniq
+    rescue
+      return []
+  end
+end
