@@ -270,11 +270,7 @@ class Scene_Battle < Scene_Base
   alias :baseupdate :update
   def update
     baseupdate
-    if BattleManager.in_turn?
-      @battle_order_sprites.dispose
-    else
-      update_battle_order_display
-    end
+    update_battle_order_display
   end
 
   alias_method :terminate_original, :terminate
@@ -286,6 +282,6 @@ end
 
 module BattleManager
   def self.battle_order
-    ($game_party.alive_members + $game_troop.alive_members).sort_by(&:agi).reverse
+    @action_battlers
   end
 end
