@@ -273,6 +273,12 @@ class Scene_Battle < Scene_Base
     update_battle_order_display
   end
 
+  alias :basecommand :next_command
+  def next_command
+    basecommand
+    update_battle_order_display
+  end
+
   alias_method :terminate_original, :terminate
   def terminate
     @battle_order_sprites.dispose if @battle_order_sprites
