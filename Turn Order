@@ -2,9 +2,9 @@
 # Turn Order by Blesstama
 #==============================================================================
 # That script allows you to see possible order of actions enemy/player will
-# do during their turn. Keep in mind that it's rough equation done purely
-# by agi and doesn't include randomness in speed calculation + features
-# like item/skills atk speed/atk speed as trait
+# do during their turn. Keep in mind that initial one done purely based on
+# agi and doesn't include parameters such as atk speed/skill and items speed
+# until all actions are selected.
 #==============================================================================
 # Actor Notes:
 #
@@ -288,6 +288,12 @@ end
 
 module BattleManager
   def self.battle_order
-    @action_battlers
+    if BattleManager.in_turn?
+      @action_battlers
+    else
+      return @action_battlers if !@action_battlers.empty?
+      make_action_orders
+      return @action_battlers
+    end
   end
 end
