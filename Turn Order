@@ -292,6 +292,8 @@ module BattleManager
       @action_battlers
     else
       return @action_battlers if !@action_battlers.empty?
+      $game_party.make_actions
+      $game_troop.make_actions
       make_action_orders
       return @action_battlers
     end
