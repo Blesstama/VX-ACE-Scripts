@@ -1,0 +1,60 @@
+class Game_Enemy < Game_Battler
+  alias random_id initialize
+  def initialize(index, enemy_id)
+    if $game_switches[1] == true
+	 # skipenemy is enemies that can't be rolled from random
+	 # norngenemy is enemies that can't be randomized
+      skipenemy = []
+      norngenemy = []
+      enemylist = (1..$data_enemies.size).to_a
+      enemylist = enemylist.reject { |num| skipenemy.include?(num) }
+      enemylist = [] if [].include?(enemy_id) #certain pool for certain enemies
+      enemy_id = enemylist.sample unless norngenemy.include?(enemy_id)
+    end
+    random_id(index, enemy_id)
+  end
+  def make_drop_items
+    r = []
+    # enemyless is enemies that ignore rng drops
+    # itemsi items that rng can't drop
+    # itemsw weapons that rng can't drop
+    # itemsa armors that rng can't drop
+    enemyless = [] 
+    itemsi = []
+    itemsw = []
+    itemsa = []
+    if $game_switches[2] == true && !enemyless.include?(enemy.id)
+      [1, 2, 3].each do |s|
+        limit = case s
+          when 1
+            $data_items.size
+          when 2
+            $data_weapons.size
+          else
+            $data_armors.size
+          end
+        (1..limit).each do |v|
+          item = case s
+                   when 1
+                     next if itemsi.include?(v)
+                     $data_items[v]
+                   when 2
+                     next if itemsw.include?(v)
+                     $data_weapons[v]
+                   else
+                     next if itemsa.include?(v)
+                     $data_armors[v]
+                   end
+          r.push(item) if item && rand(100) < 1
+        end
+      end
+    else #if switch is on or enemy in list of enemyless, classic rng drop
+      enemy.drop_items.each do |di|
+        if di.kind > 0 && rand * di.denominator < drop_item_rate
+          r.push(item_object(di.kind, di.data_id))
+        end
+      end
+    end
+    r
+  end
+end
