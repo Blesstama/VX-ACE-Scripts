@@ -112,6 +112,12 @@ class Sprite_BattleOrder < Sprite
   def update_battle_order
     dispose_sprites
     battle_participants = BattleManager.battle_order.first(@max_faces)
+    bm = $game_party.battle_members
+    bt = []
+    bm.each do |ac|
+      bt << ac.id
+    end
+    battle_participants.reject! { |ob| ob.actor? && !bt.include?(ob.id) }
     battle_participants.each_with_index { |battler, index| create_battler_sprite(battler, index) }
   end
 
