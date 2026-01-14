@@ -1,5 +1,5 @@
 #==============================================================================
-# ▼ Blesstama - Before/After Evals v0.01
+# ▼ Blesstama - Before/After Evals v0.1
 # -----------------------------------------------------------------------------
 # Actor/Class/Item/Skill/Weapon/Enemy/State Notetags:
 # These notetags go in the X notebox in the database.
@@ -27,13 +27,13 @@
 # repeated as much times as much skill hits + you can use self/b.
 # <state apply>
 #    COMMAND
-# <state apply>
+# </state apply>
 # <state update>
 #    COMMAND
-# <state update>
+# </state update>
 # <state remove>
 #    COMMAND
-# <state remove>
+# </state remove>
 # <battle start>
 #    COMMAND
 # </battle start>
@@ -43,6 +43,9 @@
 # <turn end>
 #    COMMAND
 # </turn end>
+# <battle end>
+#    COMMAND
+# </battle end>
 # Same variables as before^2 but triggers when:
 # 1)you apply state
 # 2)every time state duration decreases by 1
@@ -50,6 +53,8 @@
 # 4)battle started, happens once per, well, battle
 # 5)turn start aka when player selected his moves
 # 6)turn end aka after all actions was performed
+# 7)battle started, happens once per, well, battle
+# keep in mind that options 1-3 works only on state note itself, while 4-7 follows normal rules
 #le examples:
 # <Before Eval>
 # return if !self.result.hit?
@@ -127,16 +132,17 @@ module BattleManager
     alias :base_battle_start :battle_start
     alias :base_start :turn_start
     alias :base_end :turn_end
+	alias :base_battle_end :battle_start_end
   end
  def self.battle_start
    base_battle_start
-    regexp = /<battle start>(.*?)<\/battle start>/im
-    all = []
-    all += $game_party.members
-    all += $game_troop.members
-    all.each do |user|
-      user.turnhandle(user, regexp)
-    end
+   regexp = /<battle start>(.*?)<\/battle start>/im
+   all = []
+   all += $game_party.members
+   all += $game_troop.members
+   all.each do |user|
+     user.turnhandle(user, regexp)
+   end
  end
  def self.turn_start
    regexp = /<turn start>(.*?)<\/turn start>/im
@@ -158,6 +164,16 @@ module BattleManager
    end
    base_end
  end
+  def self.battle_end(result)
+   regexp = /<battle end>(.*?)<\/battle end>/im
+   all = []
+   all += $game_party.members
+   all += $game_troop.members
+   all.each do |user|
+    user.turnhandle(user, regexp)
+   end
+   base_battle_end
+  end
 end
 
 class Game_Battler < Game_BattlerBase
@@ -182,6 +198,7 @@ class Game_Battler < Game_BattlerBase
   def update_state_turns
     regexp = /<state update>(.*?)<\/state update>/im
     states.each do |state|
+      puts "state id: #{state.id}"
       statehandle(self, state.id, regexp)
     end
     base_turnupdate
@@ -196,6 +213,7 @@ class Game_Battler < Game_BattlerBase
 
   def statehandle(user, state_id, regexp)
     $data_states[state_id].note.scan(regexp).each do |code|
+      puts "triggered"
       eval_command(user, $data_states[state_id], code.first)
     end
   end
