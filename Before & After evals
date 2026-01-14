@@ -132,7 +132,7 @@ module BattleManager
     alias :base_battle_start :battle_start
     alias :base_start :turn_start
     alias :base_end :turn_end
-	alias :base_battle_end :battle_start_end
+    alias :base_battle_end :battle_end
   end
  def self.battle_start
    base_battle_start
@@ -172,7 +172,7 @@ module BattleManager
    all.each do |user|
     user.turnhandle(user, regexp)
    end
-   base_battle_end
+   base_battle_end(result)
   end
 end
 
