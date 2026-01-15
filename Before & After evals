@@ -1,18 +1,21 @@
 #==============================================================================
-# ▼ Blesstama - Before/After Evals v0.1
+# ▼ Blesstama - Before/After Evals v0.15
 # -----------------------------------------------------------------------------
 # Actor/Class/Item/Skill/Weapon/Enemy/State Notetags:
 # These notetags go in the X notebox in the database.
 # -----------------------------------------------------------------------------
 # <Before Before Eval>
 #    COMMAND
-# </Before Befroe Eval>
+# </Before Before Eval>
 # <Before Eval>
 #    COMMAND
 # </Before Eval>
 # <After Eval>
 #    COMMAND
 # </After Eval>
+# <After After Eval>
+#    COMMAND
+# </After After Eval>
 # Using this note makes anything inside it trigger command
 # after item has did own thing where the COMMAND is any valid ruby thing.
 # You can use the following variables in your command:
@@ -22,7 +25,7 @@
 #     t - game troop
 #     v - game variables (v[10] for variable 10)
 #     s - game switches (s[15] for switch[15])
-# Keep in mind that before^2 variation triggers only once +
+# Keep in mind that before^2 and after^2 variation triggers only once +
 # you are uncapable of using self/b for it, while before/after evals
 # repeated as much times as much skill hits + you can use self/b.
 # <state apply>
@@ -106,10 +109,20 @@ class Scene_Battle < Scene_Base
     item = @subject.current_action.item
     pre_skill_eval(@subject, item)
     pre_item
+    post_skill_eval(@subject, item)
   end
   
   def pre_skill_eval(user, item)
     regexp = /<Before Before Eval>(.*?)<\/Before Before Eval>/im
+    item.note.scan(regexp).each do |code|
+      eval_command(user, item, code.first)
+    end
+    user.get_all_notes.scan(regexp).each do |code|
+      eval_command(user, item, code.first)
+    end
+  end
+  def post_skill_eval(user, item)
+    regexp = /<After After Eval>(.*?)<\/After After Eval>/im
     item.note.scan(regexp).each do |code|
       eval_command(user, item, code.first)
     end
