@@ -69,7 +69,7 @@ class Sprite_Battler < Sprite_Base
       end
     end
     dispose_back_sprites if !@battler.alive? && !@afterimage_sprite.nil?
-    undispose_back_sprites if !@battler.alive? && !@afterimage_sprite.nil?
+    undispose_back_sprites if @battler.alive? && !@afterimage_sprite.nil?
   end
   def dispose_back_sprites
     @afterimage_sprite.each_with_index do |sprite, x|
