@@ -210,7 +210,7 @@ class Scene_Battle < Scene_Base
 end
 class Game_Battler < Game_BattlerBase
   #--------------------------------------------------------------------------
-  # * Get Effect Change Rate by Luck
+  # * Overwrites LUK formula to make it better and balanced
   #--------------------------------------------------------------------------
   def luk_effect_rate(user)
     if user.luk - luk > 0
