@@ -138,21 +138,17 @@ end
 # * Overwrites script call command to not crash game + give small hint on where it died
 #--------------------------------------------------------------------------
 class Game_Interpreter
+  alias stockscript command_355
   def command_355
-    event_id = @event_id
-    map_id = $game_map.map_id unless $game_map.map_id == nil
-    common_event_id = $game_temp.common_event_id
-    script = @list[@index].parameters[0] + "\n"
-    while next_event_code == 655
-      @index += 1
-      script += @list[@index].parameters[0] + "\n"
-    end
-    eval(script)
+    stockscript
     rescue Exception => error
-      puts "Map id: #{map_id}"
-      puts "Event id: #{event_id}"
-      puts "Common event id: #{common_event_id}"
+      puts "marshal: #{marshal_dump[3]}"
+      puts "Map id: #{marshal_dump[1]}"
+      puts "Event id: #{marshal_dump[2]}"
+      puts "Common event id: #{$game_temp.common_event_id}"
       puts "Script call: #{@list[@index].parameters[0]}"
+      puts "page: #{@page}"
+      puts "code line: #{@list[@index].parameters}"
       puts "What happened: #{error}"
   end
 end
@@ -210,5 +206,17 @@ end
 class Scene_Battle < Scene_Base
   def check_substitute(target, item)
     target.hp < target.mhp / 2 && (!item || !item.certain?)
+  end
+end
+class Game_Battler < Game_BattlerBase
+  #--------------------------------------------------------------------------
+  # * Get Effect Change Rate by Luck
+  #--------------------------------------------------------------------------
+  def luk_effect_rate(user)
+    if user.luk - luk > 0
+      [1.0 + (user.luk - luk) * 0.0025, 2.5].min
+    else
+      [1.0 + (user.luk - luk) * 0.002, 0.1].max
+    end
   end
 end
