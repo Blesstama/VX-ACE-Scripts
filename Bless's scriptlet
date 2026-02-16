@@ -1,4 +1,4 @@
-EVERYTHING BELOW THIS IS FREE TO ADD IT JUST GIVES NEW FEATURES/REWRITES FOR GOOD
+#EVERYTHING BELOW THIS IS FREE TO ADD IT JUST GIVES NEW FEATURES/REWRITES FOR GOOD
 #--------------------------------------------------------------------------
 # * Ability to pick all notes from actor and enemy (mandatory for some of my scripts)
 #--------------------------------------------------------------------------
@@ -152,7 +152,7 @@ class Game_Interpreter
       puts "What happened: #{error}"
   end
 end
-EVERYTHING BELOW THIS IS OVERWRITES/DEBATABLE CHANGES
+#EVERYTHING BELOW THIS IS OVERWRITES/DEBATABLE CHANGES
 #--------------------------------------------------------------------------
 # * Atk Speed Fix (all skills have atk speed bonus and not just skill 1)
 #--------------------------------------------------------------------------
