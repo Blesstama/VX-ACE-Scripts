@@ -135,7 +135,7 @@ class Spriteset_Battle
   end
 end
 #--------------------------------------------------------------------------
-# * Overwrites script call command to not crash game + give small hint on where it died
+# * ALIAS script call command to not crash game + give small hint on where it died
 #--------------------------------------------------------------------------
 class Game_Interpreter
   alias stockscript command_355
