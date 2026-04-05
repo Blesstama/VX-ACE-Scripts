@@ -330,12 +330,12 @@ class Scene_Battle < Scene_Base
   alias :original_apply_item_effects :apply_item_effects
 
   # Increase DG/AC before damage and only by actor
-  def apply_item_effects(user, item)
+  def apply_item_effects(target, item)
     
-    user.apply_dg_effect(item) if user.actor? == true
-    user.apply_ac_effect(item) if user.actor? == true
+    target.apply_dg_effect(item) if target.actor? == true
+    target.apply_ac_effect(item) if target.actor? == true
     
-    original_apply_item_effects(user, item)
+    original_apply_item_effects(target, item)
   end
 end
 
