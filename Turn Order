@@ -46,7 +46,7 @@
 
 module BATTLEORDER
   # CUSTOMISE BEGIN
-  DEFAULT_ENEMY_COLOR = Color.new(125, 125, 125)
+  DEFAULT_ENEMY_COLOR = Color.new(125, 125, 125, 0)
   MAX_ENEMIES = 18
   ACTORS_SIZES = 40.0
   ENEMIES_SIZES = 40.0
@@ -112,6 +112,7 @@ class Sprite_BattleOrder < Sprite
   def update_battle_order
     dispose_sprites
     battle_participants = BattleManager.battle_order.first(@max_faces)
+    battle_participants.select! { |member| member.alive? }
     bm = $game_party.battle_members
     bt = []
     bm.each do |ac|
@@ -193,7 +194,7 @@ class Sprite_BattleOrder < Sprite
 
   def create_enemy_sprite(enemy, box_x, box_y)
     color = BATTLEORDER.enemy_color(enemy)
-    create_enemy_background(box_x, box_y, color)
+    create_enemy_background(box_x, box_y, color) if color.alpha > 0
     if enemy.note =~ /<enemy faceset:\s*([\w\s']+),\s*(\d+)>/i
       create_enemy_faceset_sprite(box_x, box_y, $1.strip, $2.to_i)
     else
@@ -293,15 +294,23 @@ class Scene_Battle < Scene_Base
 end
 
 module BattleManager
+  def self.action_battlers
+    @action_battlers
+  end
   def self.battle_order
     if BattleManager.in_turn?
       @action_battlers
     else
-      return @action_battlers if !@action_battlers.empty?
-      $game_party.make_actions
-      $game_troop.make_actions
-      make_action_orders
-      return @action_battlers
+      if !@action_battlers.empty?
+       order = @action_battlers
+       order.reject! { |battler| battler.state?(1) }
+       return order
+      else
+       $game_party.make_actions
+       $game_troop.make_actions
+       make_action_orders
+       return @action_battlers
+      end
     end
   end
 end
